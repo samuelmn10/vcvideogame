@@ -166,6 +166,22 @@ class JefeBase:
         self.rect.x = round(self.x)
         return reboto
 
+    def patrullar(self, robot, velocidad, limite_izq, limite_der):
+        """Patrulla de un lado a otro sin acercarse a NEXO-7 más que DISTANCIA_PATRULLA.
+
+        Así, entre ataques el jefe no atropella al robot sin aviso: solo hace daño
+        con ataques anunciados, o si el jugador camina hacia él.
+        """
+        lado_robot = 1 if robot.rect.centerx > self.rect.centerx else -1
+        separacion = (robot.rect.left - self.rect.right) if lado_robot > 0 else (self.rect.left - robot.rect.right)
+        if separacion - velocidad < c.DISTANCIA_PATRULLA:
+            self.direccion = -lado_robot  # demasiado cerca: se aleja del robot
+        reboto = self.mover_x(velocidad, limite_izq, limite_der)
+        if reboto and self.direccion == lado_robot and separacion < c.DISTANCIA_PATRULLA:
+            # Contra la pared y con el robot cerca: se queda quieto en vez de ir hacia él
+            self.direccion = -lado_robot
+        return reboto
+
     def disparo_dirigido(self, x, y, objetivo, velocidad=c.VELOCIDAD_PROYECTIL):
         """Proyectil hacia un punto fijo; después sigue recto (no persigue)."""
         dx = objetivo[0] - x

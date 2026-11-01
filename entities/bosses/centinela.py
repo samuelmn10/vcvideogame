@@ -66,7 +66,7 @@ class CentinelaEclipse(JefeBase):
 
     def mover_en_descanso(self, robot):
         velocidad = VELOCIDAD_FASE_2 if self.en_segunda_fase() else VELOCIDAD
-        self.mover_x(velocidad, *LIMITES)
+        self.patrullar(robot, velocidad, *LIMITES)
         return False  # patrulla mientras corre el descanso
 
     def iniciar_ataque(self, robot):

@@ -31,6 +31,7 @@ TECLAS_AGACHARSE = (pygame.K_s, pygame.K_DOWN)
 TECLAS_PROPULSOR = (pygame.K_LSHIFT, pygame.K_RSHIFT)
 TECLA_SALTO = pygame.K_SPACE
 BOTON_DISPARO = 0            # índice de pygame.mouse.get_pressed(): 0 = botón izquierdo
+BOTON_SUPER = 3              # número del botón en los eventos de pygame: 3 = botón derecho
 
 # ---------------------------------------------------------------------------
 # Física (píxeles por paso de 1/60 s)
@@ -66,6 +67,12 @@ ALCANCE_PULSO = 350          # distancia máxima recorrida por un pulso
 ESPERA_PULSO = 18            # 0,3 s entre disparos
 MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 
+# Superataque (clic derecho): se carga acertando pulsos al jefe
+ACIERTOS_SUPER = 10          # pulsos que deben acertar para cargarlo
+DANIO_SUPER = 5              # un pulso hace 1
+VELOCIDAD_SUPER = 10
+ALCANCE_SUPER = 700
+
 # ---------------------------------------------------------------------------
 # Reglas comunes de los jefes (tiempos en pasos de 1/60 s)
 # ---------------------------------------------------------------------------
@@ -73,6 +80,7 @@ DURACION_TRANSICION = 90     # 1,5 s entre la fase 1 y la fase 2, sin ataques ni
 VELOCIDAD_PROYECTIL = 5      # velocidad de los proyectiles hostiles
 MAX_PROYECTILES = 12         # si se llega al máximo, la siguiente emisión espera
 DESCANSO_INICIAL = 90        # 1,5 s para ubicarse al empezar el combate
+DISTANCIA_PATRULLA = 160     # en el descanso, los jefes de suelo no se acercan más que esto a NEXO-7
 
 # ---------------------------------------------------------------------------
 # Pantallas y acciones de los botones (nombres compartidos entre módulos)

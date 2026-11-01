@@ -9,7 +9,7 @@ from world import theme
 class Proyectil:
     """Viaja en línea recta a velocidad constante. No persigue a nadie."""
 
-    def __init__(self, x, y, dir_x, dir_y, velocidad, aliado, alcance=None, bajo=False):
+    def __init__(self, x, y, dir_x, dir_y, velocidad, aliado, alcance=None, bajo=False, superataque=False, danio=1):
         # Posición con decimales para que las diagonales sean precisas
         self.x = x
         self.y = y
@@ -19,9 +19,12 @@ class Proyectil:
         self.aliado = aliado      # True = pulso de NEXO-7; False = disparo del jefe
         self.alcance = alcance    # distancia máxima o None (sin límite)
         self.bajo = bajo          # proyectil del jefe que rueda por el suelo
-        self.danio = 1
+        self.superataque = superataque  # descarga de núcleo de NEXO-7 (clic derecho)
+        self.danio = danio
         self.recorrido = 0.0
-        if bajo:
+        if superataque:
+            self.rect = pygame.Rect(0, 0, 36, 36)
+        elif bajo:
             self.rect = pygame.Rect(0, 0, 24, 18)
         elif aliado:
             self.rect = pygame.Rect(0, 0, 14, 14)
@@ -51,7 +54,11 @@ class Proyectil:
 
     def dibujar(self, pantalla, camara_x):
         centro = (self.rect.centerx - camara_x, self.rect.centery)
-        if self.aliado:
+        if self.superataque:
+            pygame.draw.circle(pantalla, theme.PULSO, centro, 18)
+            pygame.draw.circle(pantalla, theme.AVISO, centro, 18, 3)
+            pygame.draw.circle(pantalla, theme.PULSO_CENTRO, centro, 8)
+        elif self.aliado:
             pygame.draw.circle(pantalla, theme.PULSO, centro, 7)
             pygame.draw.circle(pantalla, theme.PULSO_CENTRO, centro, 3)
         elif self.bajo:

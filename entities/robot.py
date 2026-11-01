@@ -31,6 +31,7 @@ class Robot:
         self.vidas = c.VIDAS_MAXIMAS
         self.invulnerable = 0     # pasos que faltan de invulnerabilidad
         self.espera_disparo = 0   # pasos que faltan para poder disparar
+        self.carga_super = 0      # pulsos acertados al jefe desde el último superataque
 
     # ----- Salud ------------------------------------------------------------
     def actualizar_temporizadores(self):
@@ -117,6 +118,21 @@ class Robot:
     def puede_disparar(self, pulsos_activos):
         return self.espera_disparo == 0 and pulsos_activos < c.MAX_PULSOS
 
+    def registrar_acierto(self):
+        """Un pulso acertó al jefe: suma carga al superataque (sin pasar del máximo)."""
+        self.carga_super = min(c.ACIERTOS_SUPER, self.carga_super + 1)
+
+    def super_listo(self):
+        return self.carga_super >= c.ACIERTOS_SUPER
+
+    def disparar_super(self):
+        """Lanza la descarga de núcleo en la dirección del arma y vacía la carga."""
+        self.carga_super = 0
+        x, y = self.origen_disparo()
+        dir_x, dir_y = self.direccion_disparo
+        return Proyectil(x, y, dir_x, dir_y, c.VELOCIDAD_SUPER, aliado=True, alcance=c.ALCANCE_SUPER,
+                         superataque=True, danio=c.DANIO_SUPER)
+
     def disparar(self):
         """Crea un pulso en la boca del arma y empieza la espera."""
         self.espera_disparo = c.ESPERA_PULSO
@@ -185,7 +201,9 @@ class Robot:
             pygame.draw.circle(pantalla, theme.OJO, (ojo_x, y + 14), 4)
             # Cuerpo con un detalle en el pecho
             pygame.draw.rect(pantalla, theme.ROBOT, (x + 6, y + 24, 24, 17), border_radius=4)
-            pygame.draw.rect(pantalla, theme.PECHO, (x + 14, y + 28, 8, 8), border_radius=2)
+            # El pecho brilla en amarillo cuando el superataque está listo
+            pecho = theme.AVISO if self.super_listo() else theme.PECHO
+            pygame.draw.rect(pantalla, pecho, (x + 14, y + 28, 8, 8), border_radius=2)
             # Piernas
             pygame.draw.rect(pantalla, theme.ROBOT, (x + 9, y + 41, 7, 7))
             pygame.draw.rect(pantalla, theme.ROBOT, (x + 20, y + 41, 7, 7))

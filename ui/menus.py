@@ -117,9 +117,10 @@ def dibujar_menu(pantalla, fuentes, fondos, capa, aviso):
         "A / D o flechas: moverse      Espacio: saltar",
         "S o flecha abajo: agacharse      Shift en el aire: propulsor",
         "Ratón: apuntar (360° en el aire)      Clic izquierdo: disparar",
+        "Clic derecho: superataque (se carga con 10 aciertos)",
     ]
     for i, linea in enumerate(controles):
-        texto_centrado(pantalla, fuentes["normal"], linea, 230 + i * 38)
+        texto_centrado(pantalla, fuentes["normal"], linea, 225 + i * 36)
     if aviso:
         texto_centrado(pantalla, fuentes["normal"], aviso, 545, theme.AVISO)
 

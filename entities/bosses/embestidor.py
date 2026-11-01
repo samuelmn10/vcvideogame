@@ -76,7 +76,7 @@ class EmbestidorFerreo(JefeBase):
 
     def mover_en_descanso(self, robot):
         velocidad = VELOCIDAD_FASE_2 if self.en_segunda_fase() else VELOCIDAD
-        self.mover_x(velocidad, 40, c.ANCHO_VENTANA - 40)
+        self.patrullar(robot, velocidad, 40, c.ANCHO_VENTANA - 40)
         return False
 
     def preparar_aviso(self, robot):

@@ -90,7 +90,18 @@ class Juego:
 
     def puede_atacar(self):
         # En los menús, en pausa o al terminar el combate los ataques están bloqueados
-        return self.estado == c.JUGANDO and self.robot.puede_disparar(len(self.pulsos))
+        pulsos_normales = sum(1 for p in self.pulsos if not p.superataque)
+        return self.estado == c.JUGANDO and self.robot.puede_disparar(pulsos_normales)
+
+    def puede_superataque(self):
+        """Cargado, en combate, sin otra descarga en el aire y fuera de la transición
+        (durante la transición el jefe no recibe daño y se desperdiciaría)."""
+        return (self.estado == c.JUGANDO and self.robot.super_listo()
+                and not self.jefe.en_transicion() and not any(p.superataque for p in self.pulsos))
+
+    def manejar_clic_derecho(self):
+        if self.puede_superataque():
+            self.pulsos.append(self.robot.disparar_super())
 
     def lanzar_pulso(self):
         if self.puede_atacar():
@@ -131,9 +142,15 @@ class Juego:
         """Mueve los pulsos y elimina los que chocan o llegan a su límite."""
         for pulso in self.pulsos[:]:  # se recorre una copia porque se borran elementos
             pulso.actualizar()
+            if pulso.superataque:
+                # La descarga de núcleo destruye los proyectiles hostiles que toca
+                self.proyectiles = [p for p in self.proyectiles if not p.rect.colliderect(pulso.rect)]
             if self.jefe.puede_recibir_danio() and pulso.rect.colliderect(self.jefe.rect):
-                # Cada impacto resta un punto (durante la transición los pulsos lo atraviesan)
+                # Un pulso resta 1 y carga el superataque; la descarga resta DANIO_SUPER
+                # (durante la transición los pulsos lo atraviesan)
                 self.jefe.recibir_impacto(pulso.danio)
+                if not pulso.superataque:
+                    self.robot.registrar_acierto()
                 self.pulsos.remove(pulso)
             elif pulso.debe_desaparecer(c.ANCHO_VENTANA) or collisions.toca_alguno(pulso.rect, self.solidos):
                 self.pulsos.remove(pulso)
@@ -200,6 +217,7 @@ class Juego:
         for pulso in self.pulsos:
             pulso.dibujar(pantalla, 0)
         hud.dibujar_hud(pantalla, self.fuentes, self.robot, self.puede_atacar())
+        hud.dibujar_super(pantalla, self.fuentes, self.robot)
         hud.dibujar_barra_jefe(pantalla, self.fuentes, self.jefe)
         # Nombre de la nueva fase durante la transición (oculto bajo los menús)
         if self.jefe.en_transicion() and self.estado == c.JUGANDO:
@@ -225,6 +243,8 @@ def ejecutar():
                 ejecutando = False  # botón de cierre de la ventana
             elif evento.type == pygame.KEYDOWN:
                 juego.manejar_tecla(evento.key)
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == c.BOTON_SUPER:
+                juego.manejar_clic_derecho()  # superataque (los botones usan solo el clic izquierdo)
             elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 and not clic_atendido:
                 clic_atendido = True
                 if juego.manejar_clic(evento.pos) == c.SALIR:

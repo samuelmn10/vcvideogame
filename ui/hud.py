@@ -45,6 +45,21 @@ def dibujar_hud(pantalla, fuentes, robot, puede_atacar):
     pygame.draw.rect(pantalla, color, (barra.x, barra.y, int(barra.width * progreso), barra.height))
 
 
+def dibujar_super(pantalla, fuentes, robot):
+    """Barra del superataque: se llena con los pulsos acertados y brilla cuando está listo."""
+    listo = robot.super_listo()
+    texto = fuentes["normal"].render("Súper", True, theme.AVISO if listo else theme.TEXTO)
+    pantalla.blit(texto, (20, 92))
+    barra = pygame.Rect(140, 98, 120, 12)
+    llena = barra.width * robot.carga_super // c.ACIERTOS_SUPER
+    pygame.draw.rect(pantalla, theme.CORAZON_VACIO, barra)
+    pygame.draw.rect(pantalla, theme.AVISO, (barra.x, barra.y, llena, barra.height))
+    pygame.draw.rect(pantalla, theme.TEXTO, barra, 2)
+    if listo:
+        aviso = fuentes["pequena"].render("¡Clic derecho!", True, theme.AVISO)
+        pantalla.blit(aviso, (barra.right + 10, 94))
+
+
 def dibujar_barra_jefe(pantalla, fuentes, jefe):
     """Nombre, fase actual y vida de esa fase. En la transición la barra se recarga."""
     if jefe.en_transicion():
