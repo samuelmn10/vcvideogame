@@ -1,14 +1,17 @@
-"""Parámetros ajustables de RoboAventura: dimensiones, controles, física y dificultad.
+"""Parámetros ajustables de NEXO-7: Arena Eclipse: dimensiones, controles, física y robot.
 
-Para cambiar la dificultad o los controles basta con editar este archivo.
+Los parámetros de cada jefe están al principio de su propio módulo en entities/bosses/.
 """
 
 import math
+import os
 
 import pygame
 
+TITULO = "NEXO-7: Arena Eclipse"
 NOMBRE_ROBOT = "NEXO-7"
-NOMBRE_JEFE = "Centinela Eclipse"
+# Archivo de progreso (desbloqueos y victorias), junto al código del juego
+ARCHIVO_PROGRESO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "progreso.json")
 
 # ---------------------------------------------------------------------------
 # Ventana y tiempo
@@ -17,8 +20,7 @@ ANCHO_VENTANA = 960
 ALTO_VENTANA = 600
 FPS = 60
 PASO = 1 / FPS               # cada actualización simula siempre 1/60 s (paso fijo)
-ANCHO_NIVEL = 2880
-ALTURA_SUELO = 540           # coordenada Y de la parte superior del suelo
+ALTURA_SUELO = 540           # coordenada Y de la parte superior del suelo de las arenas
 
 # ---------------------------------------------------------------------------
 # Controles
@@ -55,9 +57,8 @@ RECARGA_PROPULSOR = ENERGIA_MAXIMA // PASOS_RECARGA
 # ---------------------------------------------------------------------------
 # Robot: vida y ataque
 # ---------------------------------------------------------------------------
-VIDAS_MAXIMAS = 3
+VIDAS_MAXIMAS = 4
 INVULNERABILIDAD = 72        # 1,2 s sin recibir daño después de un golpe
-MARGEN_SEGURO = 100          # distancia mínima a los bordes para guardar una posición segura
 ANGULO_MAXIMO = 60           # en el suelo: grados hacia arriba o abajo (en el aire, 360°)
 LARGO_ARMA = 20              # distancia del hombro a la boca del arma
 VELOCIDAD_PULSO = 8
@@ -66,49 +67,32 @@ ESPERA_PULSO = 18            # 0,3 s entre disparos
 MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 
 # ---------------------------------------------------------------------------
-# Enemigos comunes
+# Reglas comunes de los jefes (tiempos en pasos de 1/60 s)
 # ---------------------------------------------------------------------------
-VELOCIDAD_ENEMIGO = 3
-
-# ---------------------------------------------------------------------------
-# Jefe: Centinela Eclipse (tiempos en pasos de 1/60 s)
-# ---------------------------------------------------------------------------
-VIDA_FASE_1 = 40
-VIDA_FASE_2 = 60             # nuevo máximo: se recarga una sola vez, al pasar a la fase 2
-VELOCIDAD_JEFE = 2
-VELOCIDAD_JEFE_FASE_2 = 2.5  # 25 % más rápido
-DESCANSO_INICIAL = 120       # 2 s para ubicarse al entrar a la arena
-DESCANSO_FASE_1 = 72         # 1,2 s entre patrones
-DESCANSO_FASE_2 = 48         # 0,8 s entre patrones
-AVISO_FASE_1 = 45            # 0,75 s de señal antes de cada patrón (mínimo 0,6 s)
-AVISO_FASE_2 = 36            # 0,6 s (mínimo 0,5 s)
-DURACION_TRANSICION = 90     # 1,5 s de "Fase 2: Sobrecarga" sin ataques ni daño
-VELOCIDAD_PROYECTIL = 5
+DURACION_TRANSICION = 90     # 1,5 s entre la fase 1 y la fase 2, sin ataques ni daño
+VELOCIDAD_PROYECTIL = 5      # velocidad de los proyectiles hostiles
 MAX_PROYECTILES = 12         # si se llega al máximo, la siguiente emisión espera
-# Fase 1
-INTERVALO_RAFAGA = 24        # pasos entre los 3 disparos de la ráfaga
-INTERVALO_BAJOS = 45         # pasos entre los 3 proyectiles bajos (~225 px de separación)
-# Fase 2
-ANGULOS_ABANICO = (0, 15, 30, 45, 60)  # grados sobre la horizontal: agachado se esquiva el de 0°
-PAUSA_TRAS_ABANICO = 40
-DISPAROS_POR_RAFAGA_CORTA = 3
-RAFAGAS_CORTAS = 3
-INTERVALO_EN_RAFAGA_CORTA = 6    # pasos entre disparos de una misma ráfaga corta
-INTERVALO_ENTRE_RAFAGAS = 36     # pasos entre una ráfaga corta y la siguiente
+DESCANSO_INICIAL = 90        # 1,5 s para ubicarse al empezar el combate
 
 # ---------------------------------------------------------------------------
-# Nombres de estados y acciones (compartidos entre módulos)
+# Pantallas y acciones de los botones (nombres compartidos entre módulos)
 # ---------------------------------------------------------------------------
-INICIO = "inicio"
+MENU = "menú"
+SELECCION = "selección"
+DETALLE = "detalle"
 JUGANDO = "jugando"
 PAUSA = "pausa"
-DERROTA = "derrota"
 VICTORIA = "victoria"
+DERROTA = "derrota"
+CAMPANA = "campaña completada"
 
-NIVEL = "nivel"
-ARENA = "arena"
-
-INICIAR = "iniciar"
+JUGAR = "jugar"
+ELEGIR = "elegir"
+VOLVER = "volver"
+COMBATIR = "combatir"
 PAUSAR = "pausar"
 CONTINUAR = "continuar"
+REINTENTAR = "reintentar"
+IR_A_SELECCION = "ir a selección"
+SIGUIENTE = "siguiente jefe"
 SALIR = "salir"

@@ -1,7 +1,7 @@
-"""Ambientación: estación tecnológica abandonada.
+"""Ambientación: arenas de una estación tecnológica abandonada.
 
-Todas las decisiones visuales están aquí: colores, fuentes, fondos, suelo,
-plataformas y portal. La lógica del juego no conoce colores; para cambiar la
+Todas las decisiones visuales están aquí: colores, fuentes, fondos de las arenas,
+suelo y plataformas. La lógica del juego no conoce colores; para cambiar la
 ambientación basta con editar este archivo.
 """
 
@@ -34,37 +34,39 @@ PECHO = (80, 235, 255)
 ANTENA = (255, 215, 90)
 ARMA = (60, 70, 90)
 FUEGO = (255, 170, 50)
-# Enemigos comunes (drones de seguridad): rojo
-ENEMIGO = (215, 55, 85)
 # Proyectiles: aliados cian, hostiles magenta y naranja
 PULSO = (80, 235, 255)
 PULSO_CENTRO = (235, 255, 255)
 PROYECTIL = (255, 90, 190)
 PROYECTIL_BAJO = (255, 140, 40)
-# Objetos
-BATERIA = (90, 220, 120)
-BATERIA_BORDE = (30, 90, 50)
-MARCO_PORTAL = (90, 100, 120)
-PORTAL_EXTERIOR = (150, 80, 255)
-PORTAL_INTERIOR = (90, 40, 200)
-PORTAL_CENTRO = (220, 200, 255)
-# Arena: cámara del núcleo de energía
+# Arenas
 ARENA = (16, 12, 28)
 NUCLEO_EXTERIOR = (40, 30, 70)
 NUCLEO_MEDIO = (70, 50, 120)
 NUCLEO_CENTRO = (150, 120, 230)
-# Centinela Eclipse
-JEFE_FASE_1 = (88, 82, 160)    # índigo
-JEFE_FASE_2 = (210, 60, 50)    # rojo de sobrecarga
+HANGAR = (22, 22, 26)
+FRANJA_PELIGRO = (200, 160, 40)
+CAJA = (60, 56, 50)
+CUPULA = (10, 16, 34)
+RAYO = (120, 200, 255)
+# Jefes y avisos
 JEFE_OSCURO = (24, 20, 40)
 OJO_JEFE = (255, 240, 200)
 AVISO = (255, 215, 60)
+CENTINELA_1 = (88, 82, 160)      # índigo
+CENTINELA_2 = (210, 60, 50)      # rojo de sobrecarga
+EMBESTIDOR_1 = (130, 120, 110)   # hierro
+EMBESTIDOR_2 = (220, 110, 30)    # metal al rojo
+SERAFIN_1 = (70, 160, 220)       # azul eléctrico
+SERAFIN_2 = (240, 240, 120)      # blanco amarillento de tormenta
 # Interfaz
 TEXTO = (255, 255, 255)
 LISTO = (90, 220, 120)
 RECARGANDO = (130, 130, 150)
 CORAZON = (235, 60, 80)
 CORAZON_VACIO = (80, 86, 104)
+BLOQUEADO = (70, 74, 86)
+DERROTADO = (90, 220, 120)
 BOTON = (44, 62, 90)
 BOTON_ENCIMA = (60, 120, 140)
 BORDE_BOTON = (90, 140, 160)
@@ -90,49 +92,49 @@ def crear_capa_oscura():
 
 
 def crear_fondos():
-    """Dibuja los fondos una sola vez; en cada cuadro solo se copian (blit)."""
-    # El fondo del nivel se mueve a la mitad de velocidad que la cámara (profundidad)
-    ancho_lejano = (c.ANCHO_NIVEL - c.ANCHO_VENTANA) // 2 + c.ANCHO_VENTANA
-    lejano = pygame.Surface((ancho_lejano, c.ALTO_VENTANA))
-    lejano.fill(FONDO)
-    alturas = (300, 380, 260, 340, 420, 280)
-    for i, x in enumerate(range(0, ancho_lejano, 170)):
-        alto = alturas[i % len(alturas)]
-        modulo = pygame.Rect(x + 20, c.ALTURA_SUELO - alto, 110, alto)
-        pygame.draw.rect(lejano, FONDO_LEJANO, modulo)
-        # Ventanas: algunas siguen encendidas, otras están apagadas
-        for fila in range(modulo.top + 20, modulo.bottom - 30, 40):
-            for col in range(modulo.left + 14, modulo.right - 20, 30):
-                encendida = (fila // 40 + col // 30 + i) % 4 == 0
-                pygame.draw.rect(lejano, VENTANA_ENCENDIDA if encendida else VENTANA_APAGADA, (col, fila, 14, 10))
-    # Vigas horizontales y cables colgantes
-    for y in (90, 210):
-        pygame.draw.rect(lejano, VIGA, (0, y, ancho_lejano, 12))
-    for x in range(60, ancho_lejano, 230):
-        pygame.draw.line(lejano, CABLE, (x, 102), (x + 40, 170), 3)
+    """Dibuja los fondos de las tres arenas una sola vez; en cada cuadro solo se copian."""
+    fondos = {}
 
-    # Arena: cámara del núcleo de energía con el núcleo detrás del jefe
-    arena = pygame.Surface((c.ANCHO_VENTANA, c.ALTO_VENTANA))
-    arena.fill(ARENA)
+    # Arena 1: cámara del núcleo de energía
+    nucleo = pygame.Surface((c.ANCHO_VENTANA, c.ALTO_VENTANA))
+    nucleo.fill(ARENA)
     for x in range(0, c.ANCHO_VENTANA, 120):
-        pygame.draw.rect(arena, VIGA, (x, 0, 16, c.ALTURA_SUELO))
-    pygame.draw.rect(arena, VIGA, (0, 120, c.ANCHO_VENTANA, 14))
-    centro = (700, 300)
+        pygame.draw.rect(nucleo, VIGA, (x, 0, 16, c.ALTURA_SUELO))
+    pygame.draw.rect(nucleo, VIGA, (0, 120, c.ANCHO_VENTANA, 14))
     for radio, color in ((210, NUCLEO_EXTERIOR), (150, NUCLEO_MEDIO), (80, NUCLEO_CENTRO)):
-        pygame.draw.circle(arena, color, centro, radio)
-    pygame.draw.circle(arena, ARENA, centro, 40)  # núcleo apagado en el centro
-    return {"nivel": lejano, "arena": arena}
+        pygame.draw.circle(nucleo, color, (700, 300), radio)
+    pygame.draw.circle(nucleo, ARENA, (700, 300), 40)
+    fondos["nucleo"] = nucleo
+
+    # Arena 2: hangar de carga con franjas de peligro y cajas
+    hangar = pygame.Surface((c.ANCHO_VENTANA, c.ALTO_VENTANA))
+    hangar.fill(HANGAR)
+    for x in range(0, c.ANCHO_VENTANA, 160):
+        pygame.draw.rect(hangar, VIGA, (x, 0, 24, c.ALTURA_SUELO))
+    for x in range(-40, c.ANCHO_VENTANA, 40):
+        pygame.draw.polygon(hangar, FRANJA_PELIGRO, [(x, 150), (x + 20, 150), (x + 40, 170), (x + 20, 170)])
+    for x, alto in ((60, 70), (140, 40), (780, 60), (860, 90)):
+        pygame.draw.rect(hangar, CAJA, (x, c.ALTURA_SUELO - alto - 160, 70, alto))
+    fondos["hangar"] = hangar
+
+    # Arena 3: cúpula de tormenta con ventanales y rayos
+    cupula = pygame.Surface((c.ANCHO_VENTANA, c.ALTO_VENTANA))
+    cupula.fill(CUPULA)
+    pygame.draw.circle(cupula, FONDO_LEJANO, (c.ANCHO_VENTANA // 2, c.ALTURA_SUELO), 520, 14)
+    for x in range(60, c.ANCHO_VENTANA, 140):
+        pygame.draw.rect(cupula, VENTANA_APAGADA, (x, 60, 80, 120), border_radius=8)
+    for x0 in (130, 480, 830):
+        puntos = [(x0, 70), (x0 - 12, 110), (x0 + 8, 120), (x0 - 6, 170)]
+        pygame.draw.lines(cupula, RAYO, False, puntos, 3)
+    fondos["cupula"] = cupula
+    return fondos
 
 
 # ---------------------------------------------------------------------------
 # Dibujo del escenario
 # ---------------------------------------------------------------------------
-def dibujar_fondo_nivel(pantalla, fondos, camara_x):
-    pantalla.blit(fondos["nivel"], (-(camara_x // 2), 0))
-
-
-def dibujar_fondo_arena(pantalla, fondos):
-    pantalla.blit(fondos["arena"], (0, 0))
+def dibujar_fondo(pantalla, fondos, nombre):
+    pantalla.blit(fondos[nombre], (0, 0))
 
 
 def dibujar_solido(pantalla, rect):
@@ -150,11 +152,3 @@ def dibujar_solido(pantalla, rect):
         pygame.draw.rect(pantalla, LUZ_BORDE, (rect.x, rect.y, rect.width, 3))
         for x in range(rect.left + 10, rect.right - 5, 30):
             pygame.draw.circle(pantalla, REMACHE, (x, rect.y + 10), 2)
-
-
-def dibujar_portal(pantalla, rect):
-    """Compuerta hacia la cámara del núcleo."""
-    pygame.draw.rect(pantalla, MARCO_PORTAL, rect.inflate(16, 10), border_radius=12)
-    pygame.draw.ellipse(pantalla, PORTAL_EXTERIOR, rect)
-    pygame.draw.ellipse(pantalla, PORTAL_INTERIOR, rect.inflate(-16, -16))
-    pygame.draw.ellipse(pantalla, PORTAL_CENTRO, rect.inflate(-40, -50))

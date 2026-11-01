@@ -46,14 +46,6 @@ class Robot:
         self.vidas -= 1
         self.invulnerable = c.INVULNERABILIDAD
 
-    def caer_al_vacio(self, posicion_segura):
-        # Cada caída cuesta un corazón y regresa al robot al último lugar seguro.
-        # Como vuelve arriba en el mismo paso, la misma caída no daña dos veces.
-        self.vidas -= 1
-        self.invulnerable = c.INVULNERABILIDAD
-        self.rect.bottomleft = posicion_segura
-        self.vel_y = 0
-
     def visible(self):
         # Durante la invulnerabilidad parpadea: se oculta 6 pasos y se muestra 6
         return self.invulnerable == 0 or (self.invulnerable // 6) % 2 == 0

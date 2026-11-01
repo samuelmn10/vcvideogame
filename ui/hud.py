@@ -1,4 +1,4 @@
-"""Información en pantalla: corazones, baterías, energía, ataque, fase y vida del jefe, y mira."""
+"""Información en pantalla: corazones, energía, ataque, nombre, fase y vida del jefe, y mira."""
 
 import pygame
 
@@ -14,7 +14,7 @@ def dibujar_corazon(pantalla, x, y, lleno):
     pygame.draw.polygon(pantalla, color, [(x, y + 9), (x + 26, y + 9), (x + 13, y + 24)])
 
 
-def dibujar_hud(pantalla, fuentes, robot, baterias_recogidas, total_baterias, puede_atacar):
+def dibujar_hud(pantalla, fuentes, robot, puede_atacar):
     fuente = fuentes["normal"]
     # Nombre y corazones: uno lleno por cada punto de vida
     texto = fuente.render(c.NOMBRE_ROBOT, True, theme.PULSO)
@@ -22,13 +22,10 @@ def dibujar_hud(pantalla, fuentes, robot, baterias_recogidas, total_baterias, pu
     for i in range(c.VIDAS_MAXIMAS):
         dibujar_corazon(pantalla, 120 + i * 34, 20, i < robot.vidas)
 
-    texto = fuente.render(f"Baterías: {baterias_recogidas} / {total_baterias}", True, theme.TEXTO)
-    pantalla.blit(texto, (20, 56))
-
     # Energía del propulsor
     texto = fuente.render("Propulsor", True, theme.TEXTO)
-    pantalla.blit(texto, (20, 90))
-    barra = pygame.Rect(140, 96, 120, 12)
+    pantalla.blit(texto, (20, 58))
+    barra = pygame.Rect(140, 64, 120, 12)
     llena = barra.width * robot.energia // c.ENERGIA_MAXIMA
     pygame.draw.rect(pantalla, theme.CORAZON_VACIO, barra)
     pygame.draw.rect(pantalla, theme.PULSO, (barra.x, barra.y, llena, barra.height))
@@ -51,17 +48,18 @@ def dibujar_hud(pantalla, fuentes, robot, baterias_recogidas, total_baterias, pu
 def dibujar_barra_jefe(pantalla, fuentes, jefe):
     """Nombre, fase actual y vida de esa fase. En la transición la barra se recarga."""
     if jefe.en_transicion():
-        etiqueta = "Sobrecarga"
+        etiqueta = f"Fase 2: {jefe.NOMBRE_FASE_2}"
         vida = "recargando..."
         proporcion = jefe.progreso_transicion()  # solo visual: la vida se fija al terminar
-        color = theme.JEFE_FASE_2
+        color = theme.AVISO
     else:
-        etiqueta = "Fase 2" if jefe.en_segunda_fase() else "Fase 1"
+        numero = 2 if jefe.en_segunda_fase() else 1
+        etiqueta = f"Fase {numero}: {jefe.nombre_fase()}"
         vida = f"{jefe.vida} / {jefe.vida_maxima}"
         proporcion = jefe.vida / jefe.vida_maxima
-        color = theme.JEFE_FASE_2 if jefe.en_segunda_fase() else theme.JEFE_FASE_1
+        color = theme.AVISO if jefe.en_segunda_fase() else theme.PULSO
     centro = c.ANCHO_VENTANA // 2
-    texto = fuentes["normal"].render(f"{c.NOMBRE_JEFE} · {etiqueta}", True, theme.TEXTO)
+    texto = fuentes["normal"].render(f"{jefe.NOMBRE} · {etiqueta}", True, theme.TEXTO)
     pantalla.blit(texto, texto.get_rect(midtop=(centro, 14)))
     barra = pygame.Rect(0, 0, 360, 14)
     barra.midtop = (centro, 44)
@@ -73,7 +71,7 @@ def dibujar_barra_jefe(pantalla, fuentes, jefe):
 
 
 def dibujar_anuncio_fase(pantalla, fuentes, texto):
-    superficie = fuentes["grande"].render(texto, True, theme.JEFE_FASE_2)
+    superficie = fuentes["grande"].render(texto, True, theme.AVISO)
     pantalla.blit(superficie, superficie.get_rect(center=(c.ANCHO_VENTANA // 2, 180)))
 
 

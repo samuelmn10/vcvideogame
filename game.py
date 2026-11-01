@@ -1,69 +1,55 @@
-"""Coordina los estados del juego (menú, nivel, arena, pausa, victoria y derrota)
-y contiene el bucle principal."""
+"""Coordina las pantallas (menú, selección, detalle, combate, pausa, victoria,
+derrota y campaña completada) y contiene el bucle principal."""
 
 import pygame
 
 import config as c
-from entities.boss import Jefe
+from entities.bosses import JEFES
 from entities.robot import Robot
 from systems import collisions
+from systems.progress import Progreso
 from ui import hud, menus
-from world import level, theme
+from world import arena, theme
 
 
 class Juego:
-    """Guarda el estado de la partida (pantalla, escena, listas del mundo y cámara).
+    """Guarda la pantalla actual, el combate en curso y el progreso.
 
     Cada entidad guarda sus propios datos para no duplicarlos: el robot su salud,
-    postura, energía y espera de disparo; el jefe su vida, fase y patrones.
+    postura, energía y espera de disparo; el jefe su vida, fase y patrones;
+    Progreso los desbloqueos y las victorias.
     """
 
-    def __init__(self):
+    def __init__(self, ruta_progreso=c.ARCHIVO_PROGRESO):
         # Recursos que se crean una sola vez
         self.fuentes = theme.crear_fuentes()
         self.capa_oscura = theme.crear_capa_oscura()
         self.fondos = theme.crear_fondos()
-        self.botones = menus.crear_botones()
-        self.reiniciar()
-        self.estado = c.INICIO  # al abrir el juego se ve la pantalla inicial
+        self.botones = menus.crear_botones(JEFES)
+        self.progreso = Progreso(ruta_progreso, len(JEFES))
+        self.estado = c.MENU
+        self.indice_jefe = 0     # jefe elegido (o en combate)
+        self.limpiar_combate()
 
-    # ----- Estados ----------------------------------------------------------
-    def reiniciar(self):
-        """Reinicia toda la aventura: nivel, robot, enemigos, jefe y proyectiles."""
-        self.escena = c.NIVEL
-        self.solidos = level.crear_solidos()
-        self.portal = level.crear_portal()
-        self.robot = Robot(*level.POSICION_INICIAL)
-        self.posicion_segura = self.robot.rect.bottomleft  # pies en el último lugar seguro
-        self.enemigos = level.crear_enemigos()
-        self.baterias = level.crear_baterias()
+    # ----- Combate ----------------------------------------------------------
+    def limpiar_combate(self):
+        self.robot = None
+        self.jefe = None
+        self.solidos = []
         self.pulsos = []        # proyectiles de NEXO-7 (aliados)
         self.proyectiles = []   # proyectiles del jefe (hostiles)
-        self.jefe = None
-        self.contador = 0
         self.esperar_soltar_clic = False  # True: hay que soltar el clic antes de disparar
-        self.estado = c.JUGANDO
-        self.motivo_derrota = ""
-        self.camara_x = 0
 
-    def iniciar_partida(self):
-        """Usado por "Iniciar", "Reiniciar" y "Volver a jugar"."""
-        self.reiniciar()
-        self.esperar_soltar_clic = True  # el clic del botón no debe disparar
-
-    def entrar_arena(self):
-        """Pasa a la arena del jefe. Solo ocurre una vez: la arena no tiene portal."""
-        self.escena = c.ARENA
-        self.solidos = level.crear_solidos_arena()
-        self.enemigos = []
+    def iniciar_combate(self, indice):
+        """Usado por "Combatir" y "Reintentar": 4 corazones, energía llena y jefe nuevo."""
+        self.indice_jefe = indice
+        self.jefe = JEFES[indice]()
+        self.solidos = arena.crear_solidos(self.jefe.PLATAFORMAS)
+        self.robot = Robot(*arena.POSICION_INICIAL_ROBOT)
         self.pulsos = []
         self.proyectiles = []
-        self.robot = Robot(*level.POSICION_INICIAL_ARENA)  # con los 3 corazones
-        self.jefe = Jefe(level.ZONA_JEFE)
-        self.camara_x = 0  # la arena es fija, sin cámara
-
-    def ancho_mundo(self):
-        return c.ANCHO_NIVEL if self.escena == c.NIVEL else c.ANCHO_VENTANA
+        self.estado = c.JUGANDO
+        self.esperar_soltar_clic = True  # el clic del botón no debe disparar
 
     # ----- Entrada ----------------------------------------------------------
     def manejar_tecla(self, tecla):
@@ -76,17 +62,34 @@ class Juego:
         boton = menus.boton_pulsado(self.botones[self.estado], pos)
         if boton is None:
             return None
-        if boton.accion == c.INICIAR:
-            self.iniciar_partida()
-        elif boton.accion == c.PAUSAR:
+        accion = boton.accion
+        if accion == c.ELEGIR:
+            if not self.progreso.desbloqueado(boton.indice):
+                return None  # los bloqueados se ven, pero no se eligen
+            self.indice_jefe = boton.indice
+            self.estado = c.DETALLE
+        elif accion == c.JUGAR:
+            self.estado = c.SELECCION
+        elif accion == c.VOLVER:
+            self.estado = c.MENU if self.estado == c.SELECCION else c.SELECCION
+        elif accion == c.COMBATIR or accion == c.REINTENTAR:
+            self.iniciar_combate(self.indice_jefe)
+        elif accion == c.PAUSAR:
             self.estado = c.PAUSA
-        elif boton.accion == c.CONTINUAR:
+        elif accion == c.CONTINUAR:
             self.estado = c.JUGANDO
             self.esperar_soltar_clic = True
-        return boton.accion  # SALIR lo atiende el bucle principal
+        elif accion == c.IR_A_SELECCION:
+            self.limpiar_combate()
+            self.estado = c.SELECCION
+        elif accion == c.SIGUIENTE:
+            self.limpiar_combate()
+            self.indice_jefe += 1
+            self.estado = c.DETALLE
+        return accion  # SALIR lo atiende el bucle principal
 
     def puede_atacar(self):
-        # En los menús, en pausa o al terminar la partida los ataques están bloqueados
+        # En los menús, en pausa o al terminar el combate los ataques están bloqueados
         return self.estado == c.JUGANDO and self.robot.puede_disparar(len(self.pulsos))
 
     def lanzar_pulso(self):
@@ -95,9 +98,8 @@ class Juego:
 
     # ----- Actualización ----------------------------------------------------
     def actualizar(self, teclas, pos_raton=None, clic_presionado=False):
-        """Avanza el juego un paso fijo de 1/60 s."""
-        # En el menú, en pausa o con la partida terminada no se mueve nada
-        # y tampoco corren los temporizadores
+        """Avanza el combate un paso fijo de 1/60 s."""
+        # Fuera del combate (menús, pausa, fin) no se mueve nada ni corren los temporizadores
         if self.estado != c.JUGANDO:
             return
 
@@ -105,18 +107,22 @@ class Juego:
         if not clic_presionado:
             self.esperar_soltar_clic = False
 
-        self.robot.actualizar(teclas, self.solidos, self.ancho_mundo())
-        if self.escena == c.NIVEL:
-            self.actualizar_nivel()
-        else:
-            self.actualizar_arena()
+        self.robot.actualizar(teclas, self.solidos, c.ANCHO_VENTANA)
+        self.jefe.actualizar(self.robot, self.proyectiles)
+        self.actualizar_pulsos()
+        # Durante la transición de fase no hay proyectiles hostiles ni daño
+        if self.jefe.en_transicion():
+            self.proyectiles.clear()
+        self.actualizar_proyectiles()
+        if self.jefe.puede_danar() and self.robot.rect.colliderect(self.jefe.rect):
+            self.robot.recibir_danio()
+        self.revisar_fin()
         if self.estado != c.JUGANDO:
             return
 
-        # El cursor está en coordenadas de pantalla; sumando la cámara se obtiene
-        # su posición en el mundo
+        # Apuntar (la arena no tiene cámara: pantalla y mundo coinciden)
         if pos_raton is not None:
-            self.robot.apuntar(pos_raton[0] + self.camara_x, pos_raton[1])
+            self.robot.apuntar(*pos_raton)
         # Mantener el clic dispara de forma repetida, respetando la espera
         if clic_presionado and not self.esperar_soltar_clic:
             self.lanzar_pulso()
@@ -125,54 +131,14 @@ class Juego:
         """Mueve los pulsos y elimina los que chocan o llegan a su límite."""
         for pulso in self.pulsos[:]:  # se recorre una copia porque se borran elementos
             pulso.actualizar()
-            enemigo = next((e for e in self.enemigos if pulso.rect.colliderect(e.rect)), None)
-            if enemigo:
-                self.enemigos.remove(enemigo)  # cada pulso elimina a un solo enemigo
-                self.pulsos.remove(pulso)
-            elif self.jefe and self.jefe.puede_recibir_danio() and pulso.rect.colliderect(self.jefe.rect):
+            if self.jefe.puede_recibir_danio() and pulso.rect.colliderect(self.jefe.rect):
                 # Cada impacto resta un punto (durante la transición los pulsos lo atraviesan)
                 self.jefe.recibir_impacto(pulso.danio)
                 self.pulsos.remove(pulso)
-            elif pulso.debe_desaparecer(self.ancho_mundo()) or collisions.toca_alguno(pulso.rect, self.solidos):
+            elif pulso.debe_desaparecer(c.ANCHO_VENTANA) or collisions.toca_alguno(pulso.rect, self.solidos):
                 self.pulsos.remove(pulso)
 
-    def actualizar_nivel(self):
-        for enemigo in self.enemigos:
-            enemigo.actualizar()
-        self.actualizar_pulsos()
-
-        for bateria in self.baterias:
-            if not bateria.recogida and self.robot.rect.colliderect(bateria.rect):
-                bateria.recogida = True
-                self.contador += 1
-
-        # Solo se guarda como segura una posición con margen hacia ambos bordes
-        apoyo = self.robot.apoyo
-        if (apoyo and self.robot.rect.left - apoyo.left >= c.MARGEN_SEGURO
-                and apoyo.right - self.robot.rect.right >= c.MARGEN_SEGURO):
-            self.posicion_segura = self.robot.rect.bottomleft
-
-        # Tocar a un enemigo resta un corazón (el ataque no da invulnerabilidad)
-        if collisions.toca_alguno(self.robot.rect, [e.rect for e in self.enemigos]):
-            self.robot.recibir_danio()
-        if self.robot.rect.top > c.ALTO_VENTANA:
-            self.robot.caer_al_vacio(self.posicion_segura)
-
-        if self.robot.vidas <= 0:
-            self.estado = c.DERROTA
-            self.motivo_derrota = f"{c.NOMBRE_ROBOT} se quedó sin corazones"
-        elif self.robot.rect.colliderect(self.portal):
-            self.entrar_arena()
-        else:
-            self.actualizar_camara()
-
-    def actualizar_arena(self):
-        self.jefe.actualizar(self.robot, self.proyectiles)
-        self.actualizar_pulsos()
-        # Durante la transición a la fase 2 no hay proyectiles hostiles ni daño
-        if self.jefe.en_transicion():
-            self.proyectiles.clear()
-
+    def actualizar_proyectiles(self):
         for proyectil in self.proyectiles[:]:
             proyectil.actualizar()
             if proyectil.rect.colliderect(self.robot.rect):
@@ -182,76 +148,69 @@ class Juego:
             elif proyectil.debe_desaparecer(c.ANCHO_VENTANA):
                 self.proyectiles.remove(proyectil)
 
-        if self.jefe.puede_danar() and self.robot.rect.colliderect(self.jefe.rect):
-            self.robot.recibir_danio()
-
+    def revisar_fin(self):
         # Si los dos llegan a cero en la misma actualización, gana el jugador
         if self.jefe.derrotado():
-            self.estado = c.VICTORIA
             self.proyectiles = []
             self.pulsos = []
+            self.progreso.registrar_victoria(self.indice_jefe)
+            ultimo = self.indice_jefe == len(JEFES) - 1
+            self.estado = c.CAMPANA if ultimo else c.VICTORIA
         elif self.robot.vidas <= 0:
             self.estado = c.DERROTA
-            self.motivo_derrota = f"El {c.NOMBRE_JEFE} venció a {c.NOMBRE_ROBOT}"
-
-    def actualizar_camara(self):
-        # Centra al robot, pero sin mostrar nada fuera del nivel
-        objetivo = self.robot.rect.centerx - c.ANCHO_VENTANA // 2
-        self.camara_x = max(0, min(objetivo, c.ANCHO_NIVEL - c.ANCHO_VENTANA))
 
     # ----- Dibujo -----------------------------------------------------------
     def dibujar(self, pantalla, pos_raton=(-1, -1)):
-        if self.estado == c.INICIO:
-            menus.dibujar_inicio(pantalla, self.fuentes, self.fondos)
+        if self.estado == c.MENU:
+            menus.dibujar_menu(pantalla, self.fuentes, self.fondos, self.capa_oscura, self.progreso.aviso)
+        elif self.estado == c.SELECCION:
+            menus.dibujar_seleccion(pantalla, self.fuentes, self.fondos, self.capa_oscura)
+        elif self.estado == c.DETALLE:
+            menus.dibujar_detalle(pantalla, self.fuentes, self.fondos, self.capa_oscura,
+                                  JEFES[self.indice_jefe], self.indice_jefe)
         else:
-            self.dibujar_partida(pantalla)
+            self.dibujar_combate(pantalla)
+            nombre = self.jefe.NOMBRE
             if self.estado == c.PAUSA:
-                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Pausa", "El juego está detenido")
+                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Pausa", "El combate está detenido")
             elif self.estado == c.VICTORIA:
-                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, f"¡{c.NOMBRE_ROBOT} apagó al Centinela!",
-                                      f"Baterías recogidas: {self.contador} de {len(self.baterias)}")
+                siguiente = JEFES[self.indice_jefe + 1].NOMBRE
+                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, f"¡{nombre} derrotado!",
+                                      f"Desbloqueaste: {siguiente}")
             elif self.estado == c.DERROTA:
-                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Fin de la partida", self.motivo_derrota)
-        menus.dibujar_botones(pantalla, self.fuentes, self.botones[self.estado], pos_raton)
+                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Derrota",
+                                      f"{nombre} venció a {c.NOMBRE_ROBOT}. Los desbloqueos se conservan.")
+            elif self.estado == c.CAMPANA:
+                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "¡Campaña completada!",
+                                      f"{c.NOMBRE_ROBOT} venció a los {len(JEFES)} jefes de la Arena Eclipse")
+        menus.dibujar_botones(pantalla, self.fuentes, self.botones[self.estado], pos_raton, self)
         if self.estado == c.JUGANDO:
-            hud.dibujar_apuntado(pantalla, self.robot, self.camara_x, pos_raton)
+            hud.dibujar_apuntado(pantalla, self.robot, 0, pos_raton)
 
-    def dibujar_partida(self, pantalla):
-        if self.escena == c.NIVEL:
-            theme.dibujar_fondo_nivel(pantalla, self.fondos, self.camara_x)
-        else:
-            theme.dibujar_fondo_arena(pantalla, self.fondos)
+    def dibujar_combate(self, pantalla):
+        theme.dibujar_fondo(pantalla, self.fondos, self.jefe.FONDO)
         for solido in self.solidos:
-            theme.dibujar_solido(pantalla, solido.move(-self.camara_x, 0))
-        if self.escena == c.NIVEL:
-            theme.dibujar_portal(pantalla, self.portal.move(-self.camara_x, 0))
-            for bateria in self.baterias:
-                bateria.dibujar(pantalla, self.camara_x)
-            for enemigo in self.enemigos:
-                enemigo.dibujar(pantalla, self.camara_x)
-        else:
-            self.jefe.dibujar(pantalla)
-            for proyectil in self.proyectiles:
-                proyectil.dibujar(pantalla, 0)
-
-        # Al terminar la partida el robot se ve siempre (no parpadea)
+            theme.dibujar_solido(pantalla, solido)
+        self.jefe.dibujar(pantalla)
+        for proyectil in self.proyectiles:
+            proyectil.dibujar(pantalla, 0)
+        # Al terminar el combate el robot se ve siempre (no parpadea)
         if self.estado != c.JUGANDO or self.robot.visible():
-            self.robot.dibujar(pantalla, self.camara_x)
+            self.robot.dibujar(pantalla, 0)
         for pulso in self.pulsos:
-            pulso.dibujar(pantalla, self.camara_x)
-        hud.dibujar_hud(pantalla, self.fuentes, self.robot, self.contador, len(self.baterias), self.puede_atacar())
-        if self.jefe:
-            hud.dibujar_barra_jefe(pantalla, self.fuentes, self.jefe)
-            # Anuncio de la transición (oculto bajo los menús)
-            if self.jefe.en_transicion() and self.estado == c.JUGANDO:
-                hud.dibujar_anuncio_fase(pantalla, self.fuentes, "Fase 2: Sobrecarga")
+            pulso.dibujar(pantalla, 0)
+        hud.dibujar_hud(pantalla, self.fuentes, self.robot, self.puede_atacar())
+        hud.dibujar_barra_jefe(pantalla, self.fuentes, self.jefe)
+        # Nombre de la nueva fase durante la transición (oculto bajo los menús)
+        if self.jefe.en_transicion() and self.estado == c.JUGANDO:
+            hud.dibujar_anuncio_fase(pantalla, self.fuentes, f"Fase 2: {self.jefe.NOMBRE_FASE_2}")
 
 
 def ejecutar():
     """Bucle principal con paso fijo: el juego avanza igual a cualquier FPS."""
     pygame.init()
     pantalla = pygame.display.set_mode((c.ANCHO_VENTANA, c.ALTO_VENTANA))
-    pygame.display.set_caption(f"RoboAventura: {c.NOMBRE_ROBOT}")
+    pygame.display.set_caption(c.TITULO)
     reloj = pygame.time.Clock()
     juego = Juego()
 
@@ -278,7 +237,7 @@ def ejecutar():
             juego.actualizar(teclas, pos_raton, clic_presionado)
             acumulado -= c.PASO
 
-        # Durante la partida se dibuja una mira en lugar del cursor del sistema
+        # Durante el combate se dibuja una mira en lugar del cursor del sistema
         pygame.mouse.set_visible(juego.estado != c.JUGANDO)
         juego.dibujar(pantalla, pos_raton)
         pygame.display.flip()
