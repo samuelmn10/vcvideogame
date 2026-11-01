@@ -1,12 +1,12 @@
 """
-RoboAventura - Mini-juego de plataformas 2D (versión 3).
+RoboAventura - Mini-juego de plataformas 2D (versión 4).
 
 Controles:
     A / D o flechas izquierda / derecha -> moverse
     Espacio                             -> saltar
-    J                                   -> lanzar un pulso de energía
-    R                                   -> reiniciar (después de ganar o perder)
-    Escape                              -> salir
+    J (se puede mantener presionada)    -> lanzar pulsos de energía
+    Ratón (clic izquierdo)              -> botones: Iniciar, Pausa, Continuar,
+                                           Reiniciar, Volver a jugar y Salir
 """
 
 import math
@@ -32,7 +32,7 @@ VELOCIDAD_ENEMIGO = 3        # en la versión 1 era 2
 # Pulso de energía
 VELOCIDAD_PULSO = 8          # con 8 px/cuadro dura ~44 cuadros, así caben 2 pulsos activos
 ALCANCE_PULSO = 350          # distancia máxima en píxeles desde el punto de lanzamiento
-ESPERA_PULSO = 36            # 0,6 segundos de espera entre ataques (0,6 × 60 cuadros)
+ESPERA_PULSO = 18            # 0,3 segundos de espera entre ataques (0,3 × 60 cuadros)
 MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 
 # Vidas del robot
@@ -45,19 +45,29 @@ NOMBRE_JEFE = "VOLTARÓN"
 VIDA_JEFE = 12
 VIDA_SEGUNDA_FASE = 6        # con esta vida o menos empieza la fase 2
 VELOCIDAD_JEFE = 2
+VELOCIDAD_JEFE_FASE_2 = 2.4  # 20 % más rápido
 DURACION_AVISO = 45          # 0,75 s de señal antes de cada ataque (mínimo pedido: 0,6 s)
+DURACION_ANUNCIO_FASE = 90   # el texto "FASE 2" se muestra 1,5 s
 DESCANSO_INICIAL = 120       # 2 s para ubicarse al entrar a la arena
-DESCANSO_FASE_1 = 90         # 1,5 s entre patrones
-DESCANSO_FASE_2 = 66         # 1,1 s entre patrones (sigue siendo más de 1 s)
+DESCANSO_FASE_1 = 72         # 1,2 s entre patrones
+DESCANSO_FASE_2 = 48         # 0,8 s entre patrones
 INTERVALO_RAFAGA = 24        # cuadros entre los 3 disparos de la ráfaga
 INTERVALO_BAJOS = 45         # cuadros entre los 3 proyectiles bajos (~225 px de separación)
 VELOCIDAD_PROYECTIL = 5
 MAX_PROYECTILES = 12
 
-# Estados posibles de la partida
+# Estados posibles del juego (cada uno es una pantalla)
+INICIO = "inicio"
 JUGANDO = "jugando"
+PAUSA = "pausa"
 DERROTA = "derrota"
 VICTORIA = "victoria"
+
+# Acciones de los botones
+INICIAR = "iniciar"
+PAUSAR = "pausar"
+CONTINUAR = "continuar"
+SALIR = "salir"
 
 # Escenas
 NIVEL = "nivel"
@@ -103,6 +113,9 @@ COLOR_JEFE_FASE_2 = (220, 90, 50)
 COLOR_AVISO = (255, 220, 60)
 COLOR_PROYECTIL = (255, 120, 200)
 COLOR_PROYECTIL_BAJO = (255, 140, 40)
+COLOR_BOTON = (60, 70, 120)
+COLOR_BOTON_ENCIMA = (95, 110, 190)
+COLOR_BORDE_BOTON = (130, 140, 190)
 
 # ---------------------------------------------------------------------------
 # Diseño del nivel
@@ -395,7 +408,10 @@ class Jefe:
     def __init__(self):
         self.rect = pygame.Rect(0, 0, self.ANCHO, self.ALTO)
         self.rect.bottomright = (ZONA_JEFE[1], ALTURA_SUELO)  # extremo derecho
+        self.x = float(self.rect.x)  # con decimales, porque en la fase 2 avanza 2,4 px
         self.vida = VIDA_JEFE
+        self.fase = 1
+        self.anuncio_fase = 0  # cuadros que falta mostrar el texto "FASE 2"
         self.direccion = -1
         self.mirando_derecha = False
         self.estado = DESCANSO
@@ -404,12 +420,21 @@ class Jefe:
         self.disparos_hechos = 0
 
     def en_segunda_fase(self):
-        return self.vida <= VIDA_SEGUNDA_FASE
+        return self.fase == 2
+
+    def recibir_impacto(self):
+        """Resta un punto de vida y, si corresponde, pasa a la fase 2 (una sola vez)."""
+        self.vida = max(0, self.vida - 1)
+        if self.fase == 1 and self.vida <= VIDA_SEGUNDA_FASE:
+            self.fase = 2
+            self.anuncio_fase = DURACION_ANUNCIO_FASE
 
     def actualizar(self, jugador, proyectiles):
         # Siempre mira hacia el jugador
         self.mirando_derecha = jugador.rect.centerx > self.rect.centerx
         self.temporizador -= 1
+        if self.anuncio_fase > 0:
+            self.anuncio_fase -= 1
 
         if self.estado == DESCANSO:
             self.mover()
@@ -433,13 +458,15 @@ class Jefe:
 
     def mover(self):
         """Se desplaza de un lado a otro dentro de su zona."""
-        self.rect.x += VELOCIDAD_JEFE * self.direccion
-        if self.rect.left <= ZONA_JEFE[0]:
-            self.rect.left = ZONA_JEFE[0]
+        velocidad = VELOCIDAD_JEFE_FASE_2 if self.en_segunda_fase() else VELOCIDAD_JEFE
+        self.x += velocidad * self.direccion
+        if self.x <= ZONA_JEFE[0]:
+            self.x = ZONA_JEFE[0]
             self.direccion = 1
-        elif self.rect.right >= ZONA_JEFE[1]:
-            self.rect.right = ZONA_JEFE[1]
+        elif self.x + self.ANCHO >= ZONA_JEFE[1]:
+            self.x = ZONA_JEFE[1] - self.ANCHO
             self.direccion = -1
+        self.rect.x = round(self.x)
 
     def punto_canon(self):
         """El cañón está en el costado que mira al jugador."""
@@ -498,6 +525,26 @@ class Jefe:
             pygame.draw.rect(pantalla, COLOR_AVISO, (x, ALTURA_SUELO - 6, ancho, 6))
 
 
+class Boton:
+    """Botón rectangular que se activa con el clic izquierdo."""
+
+    def __init__(self, texto, accion, centro, ancho=260, alto=54):
+        self.texto = texto
+        self.accion = accion
+        self.rect = pygame.Rect(0, 0, ancho, alto)
+        self.rect.center = centro
+
+    def dibujar(self, pantalla, fuente, pos_raton):
+        # Cambia de color y de borde cuando el cursor está encima
+        encima = self.rect.collidepoint(pos_raton)
+        color = COLOR_BOTON_ENCIMA if encima else COLOR_BOTON
+        borde = COLOR_TEXTO if encima else COLOR_BORDE_BOTON
+        pygame.draw.rect(pantalla, color, self.rect, border_radius=10)
+        pygame.draw.rect(pantalla, borde, self.rect, 3, border_radius=10)
+        texto = fuente.render(self.texto, True, COLOR_TEXTO)
+        pantalla.blit(texto, texto.get_rect(center=self.rect.center))
+
+
 # ---------------------------------------------------------------------------
 # Lógica principal de la partida
 # ---------------------------------------------------------------------------
@@ -505,7 +552,42 @@ class Juego:
     def __init__(self):
         self.fuente = pygame.font.Font(None, 36)          # fuente por defecto de Pygame
         self.fuente_grande = pygame.font.Font(None, 72)
+        self.fuente_titulo = pygame.font.Font(None, 96)
+        centro = ANCHO_VENTANA // 2
+        # Botones de cada pantalla. Ninguno coincide en posición con un botón de la
+        # pantalla que aparece después de pulsarlo, para evitar clics accidentales.
+        self.botones = {
+            INICIO: [Boton("Iniciar", INICIAR, (centro, 440)),
+                     Boton("Salir", SALIR, (centro, 510))],
+            JUGANDO: [Boton("Pausa", PAUSAR, (ANCHO_VENTANA - 80, 90), 120, 36)],
+            PAUSA: [Boton("Continuar", CONTINUAR, (centro, 280)),
+                    Boton("Reiniciar", INICIAR, (centro, 350)),
+                    Boton("Salir", SALIR, (centro, 420))],
+            VICTORIA: [Boton("Volver a jugar", INICIAR, (centro, 420)),
+                       Boton("Salir", SALIR, (centro, 490))],
+            DERROTA: [Boton("Volver a jugar", INICIAR, (centro, 420)),
+                      Boton("Salir", SALIR, (centro, 490))],
+        }
         self.reiniciar()
+        self.estado = INICIO  # al abrir el juego se ve la pantalla inicial
+
+    def iniciar_partida(self):
+        """Usado por "Iniciar", "Reiniciar" y "Volver a jugar"."""
+        self.reiniciar()
+        self.estado = JUGANDO
+
+    def manejar_clic(self, pos):
+        """Ejecuta la acción del botón pulsado (como máximo uno) y la devuelve."""
+        for boton in self.botones[self.estado]:
+            if boton.rect.collidepoint(pos):
+                if boton.accion == INICIAR:
+                    self.iniciar_partida()
+                elif boton.accion == PAUSAR:
+                    self.estado = PAUSA
+                elif boton.accion == CONTINUAR:
+                    self.estado = JUGANDO
+                return boton.accion  # SALIR lo atiende el bucle principal
+        return None
 
     def reiniciar(self):
         """Reinicia toda la aventura: nivel, corazones, enemigos, jefe y temporizadores."""
@@ -531,17 +613,15 @@ class Juego:
         return ANCHO_NIVEL if self.escena == NIVEL else ANCHO_VENTANA
 
     def manejar_tecla(self, tecla):
+        # El teclado solo controla al robot; los menús se usan con el ratón
         if self.estado == JUGANDO:
             if tecla == pygame.K_SPACE:
                 self.jugador.saltar()
             elif tecla == pygame.K_j:
                 self.lanzar_pulso()
-        elif tecla == pygame.K_r:
-            # Reiniciar solo está disponible después de ganar o perder
-            self.reiniciar()
 
     def puede_atacar(self):
-        # Al ganar o perder los ataques quedan bloqueados
+        # En los menús, en pausa o al terminar la partida los ataques están bloqueados
         return (self.estado == JUGANDO and self.espera_pulso == 0
                 and len(self.pulsos) < MAX_PULSOS)
 
@@ -565,7 +645,7 @@ class Juego:
                 self.pulsos.remove(pulso)
             elif self.jefe and pulso.rect.colliderect(self.jefe.rect):
                 # Cada impacto al jefe le quita un punto de vida
-                self.jefe.vida = max(0, self.jefe.vida - 1)
+                self.jefe.recibir_impacto()
                 self.pulsos.remove(pulso)
             elif pulso.termino_alcance() or pulso.rect.collidelist(self.solidos) != -1:
                 self.pulsos.remove(pulso)
@@ -586,7 +666,8 @@ class Juego:
         self.jugador.vel_y = 0
 
     def actualizar(self, teclas):
-        # Si la partida terminó, no se mueve nada hasta reiniciar o salir
+        # En el menú, en pausa o con la partida terminada no se mueve nada:
+        # tampoco bajan la espera del ataque ni la invulnerabilidad.
         if self.estado != JUGANDO:
             return
 
@@ -594,6 +675,10 @@ class Juego:
             self.espera_pulso -= 1
         if self.invulnerable > 0:
             self.invulnerable -= 1
+
+        # Mantener J presionada ataca de forma repetida, respetando la espera
+        if teclas[pygame.K_j]:
+            self.lanzar_pulso()
 
         self.jugador.actualizar(teclas, self.solidos, self.ancho_mundo())
         if self.escena == NIVEL:
@@ -677,7 +762,36 @@ class Juego:
         self.camara_x = max(0, min(objetivo, ANCHO_NIVEL - ANCHO_VENTANA))
 
     # ----- Dibujo -----------------------------------------------------------
-    def dibujar(self, pantalla):
+    def dibujar(self, pantalla, pos_raton=(-1, -1)):
+        if self.estado == INICIO:
+            self.dibujar_inicio(pantalla)
+        else:
+            self.dibujar_partida(pantalla)
+            if self.estado == PAUSA:
+                self.dibujar_mensaje(pantalla, "Pausa", "El juego está detenido")
+            elif self.estado == VICTORIA:
+                self.dibujar_mensaje(pantalla, f"¡Derrotaste a {NOMBRE_JEFE}!",
+                                     f"Baterías recogidas: {self.contador} de {len(self.baterias)}")
+            elif self.estado == DERROTA:
+                self.dibujar_mensaje(pantalla, "Fin de la partida", self.motivo_derrota)
+        for boton in self.botones[self.estado]:
+            boton.dibujar(pantalla, self.fuente, pos_raton)
+
+    def dibujar_inicio(self, pantalla):
+        self.dibujar_fondo(pantalla)
+        titulo = self.fuente_titulo.render("RoboAventura", True, COLOR_TEXTO)
+        pantalla.blit(titulo, titulo.get_rect(center=(ANCHO_VENTANA // 2, 110)))
+        controles = [
+            "A / D o flechas: moverse",
+            "Espacio: saltar",
+            "J (puedes mantenerla): pulso de energía",
+            "Usa el ratón para los botones",
+        ]
+        for i, linea in enumerate(controles):
+            texto = self.fuente.render(linea, True, COLOR_TEXTO)
+            pantalla.blit(texto, texto.get_rect(center=(ANCHO_VENTANA // 2, 210 + i * 40)))
+
+    def dibujar_partida(self, pantalla):
         if self.escena == NIVEL:
             self.dibujar_fondo(pantalla)
             self.dibujar_escenario(pantalla)
@@ -699,11 +813,10 @@ class Juego:
             pulso.dibujar(pantalla, self.camara_x)
         self.dibujar_hud(pantalla)
 
-        if self.estado == VICTORIA:
-            self.dibujar_mensaje(pantalla, f"¡Derrotaste a {NOMBRE_JEFE}!",
-                                 f"Baterías recogidas: {self.contador} de {len(self.baterias)}")
-        elif self.estado == DERROTA:
-            self.dibujar_mensaje(pantalla, "Fin de la partida", self.motivo_derrota)
+        # Anuncio breve del cambio de fase (oculto bajo los menús para no encimar textos)
+        if self.jefe and self.jefe.anuncio_fase > 0 and self.estado == JUGANDO:
+            texto = self.fuente_grande.render("FASE 2", True, COLOR_JEFE_FASE_2)
+            pantalla.blit(texto, texto.get_rect(center=(ANCHO_VENTANA // 2, 180)))
 
     def jugador_visible(self):
         # Durante la invulnerabilidad parpadea: se oculta 6 cuadros, se muestra 6
@@ -787,9 +900,8 @@ class Juego:
         pantalla.blit(capa, (0, 0))
 
         lineas = [
-            (self.fuente_grande, titulo, 220),
-            (self.fuente, detalle, 300),
-            (self.fuente, "Presiona R para reiniciar o Escape para salir", 360),
+            (self.fuente_grande, titulo, 150),
+            (self.fuente, detalle, 210),
         ]
         for fuente, texto, y in lineas:
             superficie = fuente.render(texto, True, COLOR_TEXTO)
@@ -805,17 +917,19 @@ def main():
 
     ejecutando = True
     while ejecutando:
+        clic_atendido = False  # como máximo un clic por cuadro: un clic = una acción
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
-                ejecutando = False
+                ejecutando = False  # botón de cierre de la ventana
             elif evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_ESCAPE:
+                juego.manejar_tecla(evento.key)
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 and not clic_atendido:
+                clic_atendido = True
+                if juego.manejar_clic(evento.pos) == SALIR:
                     ejecutando = False
-                else:
-                    juego.manejar_tecla(evento.key)
 
         juego.actualizar(pygame.key.get_pressed())
-        juego.dibujar(pantalla)
+        juego.dibujar(pantalla, pygame.mouse.get_pos())
         pygame.display.flip()
         reloj.tick(FPS)
 

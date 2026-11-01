@@ -2,7 +2,7 @@
 
 Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
 
-Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones.
+Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones. El juego se maneja con menús de botones: inicio, pausa y fin de partida.
 
 ## Cómo ejecutarlo
 
@@ -28,9 +28,10 @@ python main.py
 |---|---|
 | A / D o flechas ← → | Moverse |
 | Espacio | Saltar |
-| J | Lanzar un pulso de energía |
-| R | Reiniciar (después de ganar o perder) |
-| Escape | Salir |
+| J (se puede mantener presionada) | Lanzar pulsos de energía (uno cada 0,3 s, máximo 2 en pantalla) |
+| Clic izquierdo | Botones: Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
+
+Desde la versión 4, R y Escape ya no se usan. Para reiniciar o salir se usan los botones, y la ventana también se puede cerrar con su botón de cierre.
 
 ---
 
@@ -272,6 +273,114 @@ Implementa únicamente esta iteración y espera nuevas instrucciones antes de am
 | Victoria | Llegar al portal | Vencer a VOLTARÓN (12 de vida) |
 | R | Reinicia el nivel | Reinicia toda la aventura (nivel, corazones, enemigos, jefe, tiempos y proyectiles) |
 
+
+### Prompt 4: menús con botones, pausa y ajustes del combate
+
+**Qué se pidió a la IA:**
+- Una interfaz con **botones y ratón**: pantalla inicial, botón Pausa (con Continuar, Reiniciar y Salir) y Volver a jugar / Salir al terminar.
+- Una **pausa real**, que congela también la espera del ataque y la invulnerabilidad.
+- Un **ataque más rápido**: 0,3 s de espera y J mantenida.
+- **Ajustes del jefe:** descanso de 1,2 s en la fase 1; en la fase 2, +20 % de velocidad, descanso de 0,8 s y el anuncio "Fase 2".
+- **Quitar R y Escape.**
+
+**Por qué se refinó el prompt así:**
+- **Se corrigió el CONTEXTO antes de enviarlo.** La primera redacción decía "Quiero incorporar una batalla contra un jefe… tres corazones", como si no existieran. La IA señaló que eso ya estaba hecho desde el Prompt 3 y que la redacción podía llevar a reescribir todo. Se cambió a "El juego ya tiene… corazones y un jefe de dos fases. Ahora quiero agregar menús… Revisa el código actual y conserva lo que ya funciona". Así quedó claro que era una iteración y no una versión nueva desde cero.
+- Se repitieron a propósito las reglas ya existentes (corazones, portal y arena, jefe). Así funcionan como **lista de verificación**: la IA debe confirmar que siguen funcionando después de los cambios.
+- Se pidieron detalles de interfaz que suelen fallar: que un clic haga una sola acción, que no se active un botón de la pantalla siguiente, y que la pausa no consuma tiempos.
+- **Este prompt reemplaza una regla del Prompt 3:** el descanso de la fase 2 baja a 0,8 s, aunque antes se pedía "al menos un segundo". Se compensa manteniendo los avisos de 0,75 s.
+
+<details>
+<summary>Texto completo del prompt 4 (con el contexto ya corregido)</summary>
+
+```
+ROL
+Continúa como desarrollador de videojuegos en Python y tutor del proyecto RoboAventura.
+CONTEXTO
+El juego ya tiene plataformas, enemigos, ataque de energía, corazones y un jefe de dos fases. Ahora quiero agregar menús con botones, una pausa real, un ataque más rápido y ajustar los tiempos de las fases. Revisa el código actual y conserva lo que ya funciona.
+OBJETIVO
+Completa esta versión con una interfaz controlada mediante clics, un combate contra un jefe de dos fases y un ataque del jugador más rápido.
+BOTONES E INTERFAZ
+* Al abrir el juego, muestra una pantalla inicial con el título y los botones "Iniciar" y "Salir".
+* "Iniciar" comienza una partida nueva con tres corazones.
+* Durante la partida, muestra un botón "Pausa".
+* Al pausarla, detén movimientos, proyectiles, daño y temporizadores. Muestra los botones "Continuar", "Reiniciar" y "Salir".
+* "Continuar" reanuda la partida sin consumir durante la pausa los tiempos de espera o de invulnerabilidad.
+* Después de ganar o perder, muestra los botones "Volver a jugar" y "Salir".
+* "Reiniciar" y "Volver a jugar" restauran toda la aventura.
+* Todos los botones deben funcionar con el botón izquierdo del ratón, tener texto legible y cambiar de aspecto al pasar el cursor.
+* Un clic debe provocar una sola acción y no activar accidentalmente botones de la pantalla siguiente.
+* "Salir" debe cerrar correctamente el juego desde cualquier menú.
+* Elimina la dependencia de R y Escape para reiniciar o salir.
+* Conserva A/D o las flechas para moverse, espacio para saltar y J para atacar. Muestra estos controles en la pantalla inicial.
+* Mantén operativo el botón de cierre de la ventana.
+VIDAS DEL JUGADOR
+* Muestra tres corazones. Cada impacto de un enemigo, del jefe o de un proyectil resta uno.
+* Después de recibir daño, concede 1,2 segundos de invulnerabilidad y haz parpadear al personaje.
+* Caer en un hueco resta un corazón y devuelve al jugador a una posición segura.
+* Evita descontar varios corazones por un mismo impacto o caída.
+* Al llegar a cero, muestra la derrota y sus botones.
+ATAQUE DEL JUGADOR
+* Reduce el tiempo mínimo entre ataques de 0,6 a 0,3 segundos.
+* Permite mantener J presionada para atacar repetidamente, respetando ese intervalo.
+* Conserva un máximo de dos pulsos activos y un alcance de 350 píxeles.
+* Cada pulso viaja hacia el lado que mira el personaje, causa un punto de daño y desaparece al impactar.
+* Los pulsos también desaparecen al golpear superficies sólidas o alcanzar su límite.
+* Permite atacar desde el suelo y durante un salto.
+* No permitas atacar desde los menús, durante la pausa o después de terminar la partida.
+PORTAL Y ARENA
+* Conserva el nivel de plataformas.
+* Al atravesar el portal, elimina los enemigos y proyectiles anteriores y entra a una arena fija con suelo continuo.
+* Recupera los tres corazones una sola vez al entrar.
+* Separa las posiciones iniciales del jugador y del jefe.
+* Impide regresar por el portal para recuperar vida.
+* La victoria se obtiene al derrotar al jefe.
+JEFE Y FASES
+* Crea un robot jefe original con doce puntos de vida y una barra visible.
+* Haz que se mueva horizontalmente dentro de límites definidos.
+* Organiza su comportamiento en aviso, ataque y descanso.
+* Antes de cada patrón, muestra un aviso visual de al menos 0,6 segundos.
+Fase 1: de doce a siete puntos de vida.
+* Alterna una ráfaga de tres proyectiles dirigidos hacia la posición del jugador al disparar y una secuencia de tres proyectiles bajos que puedan esquivarse saltando.
+* Los proyectiles no deben perseguir al jugador.
+* Incluye 1,2 segundos de descanso entre patrones.
+Fase 2: de seis a un punto de vida.
+* Anuncia "Fase 2" brevemente y cambia el color del jefe.
+* Aumenta un 20 % su velocidad de movimiento.
+* Reduce el descanso entre patrones a 0,8 segundos.
+* Conserva los avisos y ambos patrones, manteniendo oportunidades reales para esquivar y contraatacar.
+* Activa la transición una sola vez.
+REGLAS Y LÍMITES
+* Limita a doce los proyectiles enemigos activos.
+* Elimina los proyectiles enemigos al impactar al jugador o salir de la arena.
+* Al morir el jefe, elimina sus ataques y detén el daño. Si ambos personajes llegan a cero en la misma actualización, da prioridad a la victoria.
+* Reiniciar debe restaurar corazones, enemigos, jefe, fase, proyectiles y temporizadores.
+* Mantén un nivel, una arena y un jefe con dos fases.
+* No agregues armas, inventario, niveles, multijugador ni funciones ajenas a lo solicitado.
+* Usa Python y Pygame, sin nuevas dependencias ni recursos externos.
+* Dibuja los elementos mediante figuras geométricas originales.
+FORMATO DE RESPUESTA
+1. Resume los cambios.
+2. Entrega los archivos modificados completos.
+3. Explica los botones, la pausa, el intervalo de ataque y las fases del jefe.
+4. Incluye pruebas manuales para verificar botones, pausa, daño, frecuencia de ataque, transición de fase y reinicio completo.
+5. Distingue las pruebas ejecutadas de las pendientes y señala las limitaciones conocidas.
+```
+
+</details>
+
+**Cambios respecto a la versión 3:**
+
+| Elemento | Versión 3 | Versión 4 |
+|---|---|---|
+| Al abrir | Empieza a jugar | Pantalla inicial con título, controles e Iniciar / Salir |
+| Reiniciar / salir | Teclas R y Escape | Botones (Reiniciar, Volver a jugar, Salir) y la X de la ventana |
+| Pausa | No había | Botón Pausa: congela todo, incluidos los tiempos |
+| Espera del ataque | 0,6 s, una pulsación por pulso | 0,3 s, y se puede mantener J |
+| Descanso del jefe, fase 1 | 1,5 s | 1,2 s |
+| Descanso del jefe, fase 2 | 1,1 s | 0,8 s |
+| Velocidad del jefe, fase 2 | igual que en la fase 1 (2 px/cuadro) | +20 % (2,4 px/cuadro) |
+| Cambio de fase | Solo color y texto en la barra | Además, el anuncio "FASE 2" durante 1,5 s; ocurre una sola vez |
+
 ---
 
 ## Cómo funciona (resumen técnico)
@@ -301,11 +410,49 @@ Implementa únicamente esta iteración y espera nuevas instrucciones antes de am
 - **Fase 2:** con 6 de vida o menos, el jefe se vuelve naranja, la barra dice "FASE 2" y el descanso baja de 1,5 s a 1,1 s. Los avisos duran lo mismo.
 - **Fin del combate:** si el jefe llega a 0 se revisa primero que el jugador (prioridad a la victoria). Al ganar se borran todos los proyectiles y ya no se procesa daño.
 
+### Versión 4: menús, pausa y ajustes
+
+- **Pantallas:** el juego tiene un `estado`: `inicio`, `jugando`, `pausa`, `victoria` o `derrota`. Cada estado tiene su lista de botones (`self.botones[estado]`), y solo se dibujan y se pueden pulsar los de la pantalla actual.
+- **Botones:** la clase `Boton` guarda su texto, su acción y un rectángulo. Al dibujarse revisa si el cursor está encima (`collidepoint`); si lo está, usa un color más claro y un borde blanco.
+- **Clics:** en el bucle principal solo se atiende `MOUSEBUTTONDOWN` con el botón izquierdo (`button == 1`), y como máximo un clic por cuadro. `manejar_clic()` ejecuta la acción del primer botón que contiene el punto y termina. Además, ningún botón está en la misma posición que un botón de la pantalla que aparece al pulsarlo, así que un clic no puede activar dos cosas.
+- **Salir:** `manejar_clic()` devuelve `SALIR` y el bucle principal termina. La X de la ventana (`pygame.QUIT`) sigue funcionando.
+- **Pausa:** `actualizar()` sale de inmediato si el estado no es `jugando`. Por eso, en pausa no se mueven el robot, el jefe ni los proyectiles, no hay daño, y tampoco bajan `espera_pulso`, `invulnerable`, el temporizador del jefe ni el anuncio de fase. Al continuar, todo sigue desde el mismo valor.
+- **Ataque:** `ESPERA_PULSO = 18` cuadros (0,3 s). En cada cuadro de juego, si J está presionada (`teclas[pygame.K_j]`), se intenta lanzar un pulso. `puede_atacar()` solo lo permite con la espera en 0, menos de 2 pulsos activos y la partida en curso. Por eso, manteniendo J sale un pulso cada 18 cuadros, sin pasar de 2 a la vez.
+- **Fases:** el jefe guarda `fase` (1 o 2). `recibir_impacto()` resta 1 y, si estaba en la fase 1 y quedó con 6 o menos, pasa a la fase 2 y activa `anuncio_fase` (90 cuadros). Como solo cambia cuando `fase == 1`, la transición ocurre una sola vez. En la fase 2 se mueve a 2,4 px por cuadro, guardando su posición con decimales (`self.x`), y descansa 48 cuadros.
+
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 4: 91 de 91 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Repiten las de la versión 3, adaptadas a los nuevos tiempos y botones, y agregan:
+
+| Regla | Resultado |
+|---|---|
+| Al abrir se ve la pantalla inicial; cada pantalla tiene los botones pedidos | ✅ |
+| En el menú, J, espacio y las flechas no hacen nada | ✅ |
+| Iniciar empieza con 3 corazones; un clic fuera de los botones no hace nada | ✅ |
+| Salir funciona desde inicio, pausa, victoria y derrota | ✅ |
+| R y Escape ya no reinician ni cierran | ✅ |
+| Ningún botón se superpone con los de la pantalla siguiente; repetir el clic en el mismo punto no activa nada | ✅ |
+| El botón cambia de color con el cursor encima | ✅ |
+| 5 s de pausa: no cambia nada (posiciones, proyectiles, temporizador del jefe, espera, invulnerabilidad, vidas) | ✅ |
+| Continuar reanuda con los mismos tiempos; Reiniciar desde la pausa restaura toda la aventura | ✅ |
+| Mantener J: 12 pulsos en 4 s, intervalo mínimo de 18 cuadros (0,3 s), nunca más de 2 activos | ✅ |
+| No se puede atacar en inicio, pausa, victoria ni derrota | ✅ |
+| El jefe sigue en la fase 1 con 7 de vida y pasa a la fase 2 con 6, una sola vez, con anuncio de 1,5 s | ✅ |
+| En 50 cuadros recorre 100 px en la fase 1 y 120 px en la fase 2 (+20 %) | ✅ |
+| Descanso: 72 cuadros (1,2 s) en la fase 1 y 48 (0,8 s) en la fase 2 | ✅ |
+| En la fase 2 siguen los dos patrones, siempre con aviso de 45 cuadros | ✅ |
+| Volver a jugar (tras ganar o perder) restaura corazones, enemigos, jefe, fase, proyectiles y tiempos | ✅ |
+| El jugador automático completa todo (14 s) | ✅ |
+
+También se probó el **bucle principal real** (`main()`) con clics simulados:
+- Iniciar → Pausa → Continuar → Pausa → Salir cierra el juego.
+- Si llegan dos clics en el mismo cuadro, solo cuenta el primero.
+- La X de la ventana cierra el juego.
+- Escape ya no cierra.
 
 **Versión 3: 53 de 53 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8.
 
@@ -376,6 +523,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 3. **La regla de "máximo 2 pulsos" no tenía efecto:** con velocidad 10, el pulso desaparecía en 35 cuadros, antes de que terminara la espera de 36. **Ajuste:** se bajó la velocidad a 8 (el pulso dura unos 44 cuadros).
 4. **El indicador decía "listo" después de perder,** aunque el ataque estaba bloqueado. Se vio en una captura. **Ajuste:** `puede_atacar()` también revisa que la partida siga en curso.
 5. **(Versión 3) Reaparecer al filo del hueco:** al principio, la posición segura era el último lugar donde el robot estuvo apoyado, que muchas veces es el borde del hueco. Una prueba mostró que, con la tecla todavía presionada, el robot volvía a caer enseguida y perdía otro corazón. **Ajuste:** solo se guarda una posición con al menos 100 px de suelo a cada lado (`MARGEN_SEGURO`). Para eso el jugador ahora recuerda sobre qué sólido está parado (`apoyo`).
+6. **(Versión 4) Textos encimados en la pausa:** en una captura, el anuncio "FASE 2" quedaba detrás del título "Pausa". **Ajuste:** el anuncio solo se dibuja mientras se juega. Como su tiempo no corre en pausa, sigue visible al continuar.
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -418,7 +566,21 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 31. Bajar al jefe a 6: se pone naranja, aparece "FASE 2" y descansa menos, pero sigue avisando.
 32. Vencer al jefe: desaparecen sus proyectiles y aparece "¡Derrotaste a VOLTARÓN!".
 33. Perder en la arena: aparece "VOLTARÓN te venció".
-34. Presionar R después de ganar y después de perder: vuelve al inicio del nivel con 3 corazones, 3 enemigos, sin baterías y con el ataque listo.
+34. ~~Presionar R después de ganar y de perder~~ (reemplazada por la 43 en la versión 4).
+
+**Botones, pausa y ataque (versión 4):**
+
+35. Abrir el juego: aparece la pantalla inicial con el título, los controles e Iniciar / Salir. Pasar el cursor por cada botón: cambia de color.
+36. Presionar J, espacio o las flechas en la pantalla inicial: no pasa nada.
+37. Pulsar Iniciar: empieza la partida con 3 corazones y aparece el botón Pausa arriba a la derecha.
+38. Pausar con un enemigo o un proyectil cerca: todo se congela, el robot no se mueve aunque presiones teclas y no recibe daño. Esperar unos segundos y pulsar Continuar: todo sigue desde el mismo punto.
+39. Recibir un golpe, pausar mientras parpadea, esperar y continuar: el parpadeo dura lo que le faltaba, no se consumió en la pausa.
+40. Mantener J presionada: sale un pulso cada 0,3 s y nunca hay más de 2 en pantalla. Probar también en el aire y hacia los dos lados.
+41. Bajar al jefe de 7 a 6: aparece "FASE 2" por un momento, el jefe se vuelve naranja, se mueve un poco más rápido y descansa menos, pero sigue avisando antes de cada ataque.
+42. Pulsar Reiniciar en la pausa: vuelve al inicio del nivel con todo restaurado.
+43. Ganar y perder: aparecen "Volver a jugar" y "Salir". Volver a jugar restaura 3 corazones, 3 enemigos, baterías, jefe en la fase 1 y el ataque listo.
+44. Pulsar Salir en el inicio, en la pausa y al terminar la partida: el juego se cierra. También cerrar con la X de la ventana.
+45. Presionar R y Escape en cualquier momento: no hacen nada.
 
 ### Limitaciones conocidas
 
@@ -429,10 +591,12 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - El enemigo de la plataforma 5 empieza en el borde izquierdo. Si el robot sube justo ahí al comenzar, puede chocar con él. Conviene mirar antes de subir.
 - `requirements.txt` sigue pidiendo `pygame`. En Python 3.14 hay que instalar `pygame-ce` a mano (ver nota en "Cómo ejecutarlo").
 - **(Versión 3)** Las caídas siempre restan un corazón, incluso durante la invulnerabilidad. Si no, se podría caer gratis mientras el robot parpadea. Es una decisión de diseño.
-- **(Versión 3)** El jefe muere rápido: un jugador perfecto que dispara cada 0,6 s le gana en unos 8 segundos (12 impactos). Para una pelea más larga habría que subir su vida o dejarlo invulnerable durante el aviso, lo que cambiaría las reglas pedidas.
+- **(Versión 3, más notorio en la 4)** El jefe muere rápido. Con la espera de 0,3 s, un jugador cerca del jefe puede hacerle los 12 impactos en pocos segundos, porque los pulsos llegan antes y se libera el límite de 2. Para una pelea más larga habría que subir su vida, lo que cambiaría las reglas pedidas.
+- **(Versión 4)** El descanso de la fase 2 (0,8 s) es menor que el "al menos un segundo" del Prompt 3. Lo pidió el Prompt 4, y los avisos de 0,75 s se mantienen para que siga siendo esquivable.
+- **(Versión 4)** El indicador del ataque dice "recargando" en la pausa y al terminar la partida. En realidad está bloqueado, no recargando.
 - **(Versión 3)** Tocar un enemigo no empuja al robot hacia atrás. Si se queda encima del enemigo después de parpadear, pierde otro corazón.
 - **(Versión 3)** Detrás del jefe hay un espacio de 40 px cuando está en su extremo derecho. Si el robot salta por encima y se queda ahí, el jefe se da vuelta y le dispara hacia ese lado.
-- **Pendiente:** jugar las versiones 2 y 3 con ventana y teclado real (pruebas manuales 10 a 34).
+- **Pendiente:** jugar las versiones 2, 3 y 4 con ventana, teclado y ratón reales (pruebas manuales 10 a 45).
 
 ## Reflexión final
 
