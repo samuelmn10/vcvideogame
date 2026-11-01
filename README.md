@@ -16,10 +16,10 @@ pip install -r requirements.txt
 python main.py
 ```
 
-> **Si la instalación falla con Python 3.14** (error `'SDL.h' file not found`): pygame 2.6.1 todavía no tiene versión lista para Python 3.14. Instala `pygame-ce`, que se usa igual con `import pygame`:
+> **Nota:** el proyecto usa **pygame-ce** (la edición comunitaria de Pygame), que tiene versiones listas para Python 3.10 a 3.14 y se usa igual, con `import pygame`. Se eligió porque pygame 2.6.1 no se pudo instalar en Python 3.14 (error `'SDL.h' file not found`). Si ya tenías instalado `pygame`, desinstálalo antes, porque los dos no pueden convivir:
 >
 > ```bash
-> pip install pygame-ce
+> pip uninstall pygame
 > ```
 
 ## Controles
@@ -1165,7 +1165,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 
 ### Errores encontrados y ajustes
 
-1. **Instalación en macOS con Python 3.14:** `pip install -r requirements.txt` falló con `'SDL.h' file not found`, porque pygame 2.6.1 no tiene versión para Python 3.14 e intentó compilarse. **Ajuste:** se instaló `pygame-ce`, que es compatible y no requiere cambiar el código. Se agregó la nota en "Cómo ejecutarlo".
+1. **Instalación en macOS con Python 3.14:** `pip install -r requirements.txt` falló con `'SDL.h' file not found`, porque pygame 2.6.1 no tiene versión para Python 3.14 e intentó compilarse. **Ajuste:** se instaló `pygame-ce`, que es compatible y no requiere cambiar el código. En la versión 7, `requirements.txt` pasó a pedir `pygame-ce` directamente.
 2. **El pulso pasaba 2 px de su alcance:** avanzaba de 8 en 8 y 350 no es múltiplo de 8, así que llegaba a 352 px. Lo detectó una prueba automática. **Ajuste:** el último paso se recorta a lo que falta.
 3. **La regla de "máximo 2 pulsos" no tenía efecto:** con velocidad 10, el pulso desaparecía en 35 cuadros, antes de que terminara la espera de 36. **Ajuste:** se bajó la velocidad a 8 (el pulso dura unos 44 cuadros).
 4. **El indicador decía "listo" después de perder,** aunque el ataque estaba bloqueado. Se vio en una captura. **Ajuste:** `puede_atacar()` también revisa que la partida siga en curso.
@@ -1308,7 +1308,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 7)** Contra el Embestidor, agacharse solo sirve si NEXO-7 estaba de pie cuando salió el abanico; muy cerca del jefe (a menos de ~220 px), el rayo inferior también alcanza al robot agachado.
 - **(Versión 7)** El abanico descendente del Serafín tiene huecos de unos 35 px entre rayos al llegar al suelo. Alejarse a más de ~220 px de su vertical es más seguro que buscar el hueco.
 - **(Versión 7)** El progreso se guarda junto al código (`progreso.json`). Si la carpeta es de solo lectura, el juego sigue funcionando, pero avisa que no pudo guardar.
-- **(Versión 7)** `requirements.txt` sigue pidiendo `pygame`. En Python 3.14 hay que instalar `pygame-ce` a mano.
+- **(Versión 7)** `requirements.txt` pide `pygame-ce` (antes pedía `pygame`, que no se instalaba en Python 3.14). Todas las pruebas se ejecutaron también con pygame 2.6.1, así que el código funciona con los dos.
 - **Pendiente:** jugar los tres jefes con ventana, teclado y ratón reales (pruebas manuales 66 a 76). Sobre todo, falta comprobar que la curva de dificultad sea justa para una persona.
 
 ## Reflexión final
