@@ -34,7 +34,7 @@ class TarjetaJefe:
     def __init__(self, indice, clase_jefe, centro):
         self.indice = indice
         self.clase = clase_jefe
-        self.rect = pygame.Rect(0, 0, 270, 250)
+        self.rect = pygame.Rect(0, 0, 250, 250)
         self.rect.center = centro
 
     def dibujar(self, pantalla, fuentes, pos_raton, juego):
@@ -53,7 +53,7 @@ class TarjetaJefe:
         lineas = [
             (fuentes["normal"], f"Jefe {self.indice + 1}", theme.TEXTO),
             (fuentes["normal"], self.clase.NOMBRE, theme.TEXTO),
-            (fuentes["normal"], f"Dificultad: {self.clase.DIFICULTAD}", theme.TEXTO),
+            (fuentes["pequena"], f"Dificultad: {self.clase.DIFICULTAD}", theme.TEXTO),
             (fuentes["normal"], estado, color),
         ]
         for i, (fuente, texto, col) in enumerate(lineas):
@@ -69,8 +69,9 @@ class TarjetaJefe:
 def crear_botones(jefes):
     """Botones de cada pantalla (se crean una sola vez)."""
     centro = c.ANCHO_VENTANA // 2
-    separacion = c.ANCHO_VENTANA // (len(jefes) + 1)
-    tarjetas = [TarjetaJefe(i, clase, (separacion * (i + 1), 290)) for i, clase in enumerate(jefes)]
+    # Tarjetas de 250 px separadas 270 px entre centros, centradas en la ventana
+    primera = centro - 270 * (len(jefes) - 1) // 2
+    tarjetas = [TarjetaJefe(i, clase, (primera + 270 * i, 290)) for i, clase in enumerate(jefes)]
     seleccion = Boton("Selección de jefe", c.IR_A_SELECCION, (centro, 450))
     return {
         c.MENU: [Boton("Jugar", c.JUGAR, (centro, 400)), Boton("Salir", c.SALIR, (centro, 470))],

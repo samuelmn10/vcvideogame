@@ -59,7 +59,7 @@ def dibujar_barra_jefe(pantalla, fuentes, jefe):
         proporcion = jefe.vida / jefe.vida_maxima
         color = theme.AVISO if jefe.en_segunda_fase() else theme.PULSO
     centro = c.ANCHO_VENTANA // 2
-    texto = fuentes["normal"].render(f"{jefe.NOMBRE} · {etiqueta}", True, theme.TEXTO)
+    texto = fuentes["pequena"].render(f"{jefe.NOMBRE} · {etiqueta}", True, theme.TEXTO)
     pantalla.blit(texto, texto.get_rect(midtop=(centro, 14)))
     barra = pygame.Rect(0, 0, 360, 14)
     barra.midtop = (centro, 44)

@@ -78,6 +78,7 @@ BORDE_BOTON = (90, 140, 160)
 def crear_fuentes():
     """Fuente por defecto de Pygame, sin archivos externos."""
     return {
+        "pequena": pygame.font.Font(None, 28),
         "normal": pygame.font.Font(None, 36),
         "grande": pygame.font.Font(None, 72),
         "titulo": pygame.font.Font(None, 96),
