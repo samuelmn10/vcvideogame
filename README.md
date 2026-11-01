@@ -2,7 +2,7 @@
 
 Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
 
-Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones. El juego se maneja con menús de botones: inicio, pausa y fin de partida.
+Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones. El juego se maneja con menús de botones: inicio, pausa y fin de partida. El robot apunta con el ratón, se agacha para esquivar y tiene un propulsor para vuelos cortos.
 
 ## Cómo ejecutarlo
 
@@ -28,10 +28,13 @@ python main.py
 |---|---|
 | A / D o flechas ← → | Moverse |
 | Espacio | Saltar |
-| J (se puede mantener presionada) | Lanzar pulsos de energía (uno cada 0,3 s, máximo 2 en pantalla) |
-| Clic izquierdo | Botones: Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
+| S o flecha abajo (en el suelo) | Agacharse (mitad de altura, más lento) |
+| Shift (en el aire) | Propulsor: vuelo corto de hasta 2 s, se recarga en 1,5 s en el suelo |
+| Ratón | Apuntar (de −60° a +60° hacia cada lado) |
+| Clic izquierdo (se puede mantener) | Disparar pulsos (uno cada 0,3 s, máximo 2 en pantalla) |
+| Clic izquierdo en los menús | Botones: Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
 
-Desde la versión 4, R y Escape ya no se usan. Para reiniciar o salir se usan los botones, y la ventana también se puede cerrar con su botón de cierre.
+Desde la versión 4, R y Escape ya no se usan, y desde la versión 5 tampoco J: se dispara con el ratón. La ventana también se puede cerrar con su botón de cierre.
 
 ---
 
@@ -381,6 +384,107 @@ FORMATO DE RESPUESTA
 | Velocidad del jefe, fase 2 | igual que en la fase 1 (2 px/cuadro) | +20 % (2,4 px/cuadro) |
 | Cambio de fase | Solo color y texto en la barra | Además, el anuncio "FASE 2" durante 1,5 s; ocurre una sola vez |
 
+
+### Prompt 5: apuntado con el ratón, agacharse y propulsor
+
+**Qué se pidió a la IA:**
+- **Apuntar con el ratón** en un rango de ±60° hacia cada lado, con mira y una línea de dirección.
+- **Disparar con clic** (manteniendo, cada 0,3 s), en lugar de J.
+- **Agacharse** con S para esquivar.
+- Un **propulsor** con Shift para vuelos cortos, con barra de energía.
+- Que el movimiento sea **independiente de los FPS**.
+
+**Por qué se refinó el prompt así:**
+- Se describió el **problema de jugabilidad** que motivaba el cambio ("disparar con J y apuntar solo en horizontal dificulta combatir y esquivar"), no solo la solución. Así la IA puede revisar si las nuevas habilidades de verdad sirven contra el jefe.
+- Se detallaron los casos difíciles del apuntado, que suelen salir mal:
+  - pasar el cursor de pantalla a coordenadas del mundo cuando hay cámara;
+  - normalizar el vector;
+  - que el eje Y crece hacia abajo;
+  - reflejar el ángulo hacia la izquierda;
+  - el cursor justo encima del arma.
+- Se pidió que un clic en "Iniciar" o "Continuar" **no dispare**. Es un error típico al mezclar disparo con clic y botones con clic.
+- Se pidió **no reconstruir el proyecto**: modificar el código actual.
+
+<details>
+<summary>Texto completo del prompt 5</summary>
+
+```
+ROL
+Actúa como desarrollador de videojuegos en Python y especialista en controles de juegos de plataformas 2D.
+CONTEXTO
+Estoy desarrollando RoboAventura con Pygame. La versión actual tiene plataformas, tres corazones, un jefe con dos fases y menús con botones.
+La jugabilidad necesita mejorar: disparar con J y apuntar únicamente en horizontal dificulta combatir y esquivar.
+OBJETIVO
+Modifica la versión existente para apuntar con el mouse, disparar con clic izquierdo, agacharse y realizar un vuelo corto. Conserva los menús, vidas, nivel y comportamiento del jefe.
+APUNTADO VECTORIAL CON EL MOUSE
+* Calcula un vector de dirección desde el arma del robot hacia el cursor.
+* Convierte correctamente las coordenadas del cursor de pantalla a coordenadas del mundo cuando exista desplazamiento de cámara.
+* Normaliza el vector para que la velocidad del proyectil sea constante, independientemente de la distancia al cursor.
+* Permite apuntar desde −60° hasta +60° respecto a la horizontal del lado hacia el que se apunta: 0° horizontal, ángulos positivos hacia arriba y negativos hacia abajo.
+* Refleja este rango al apuntar hacia la izquierda. Debe poder dispararse hacia ambos lados.
+* Ten en cuenta que el eje Y de pantalla aumenta hacia abajo.
+* Si el cursor queda fuera del rango permitido, limita el disparo al ángulo válido más cercano.
+* La orientación del arma debe seguir al cursor, independientemente del movimiento: el robot puede caminar hacia la izquierda mientras dispara hacia la derecha.
+* Si el cursor coincide con el origen del disparo, conserva la última dirección válida para evitar errores.
+* Muestra una mira y una línea corta o indicador que represente la dirección real del disparo limitado.
+DISPARO CON CLIC
+* Sustituye J por el botón izquierdo del mouse.
+* Mantener presionado el botón debe disparar cada 0,3 segundos.
+* Conserva el alcance de 350 píxeles, el máximo de dos pulsos activos y un punto de daño por impacto.
+* Mide el alcance mediante la distancia recorrida, también en disparos diagonales.
+* Permite disparar caminando, saltando, agachado y volando.
+* Ajusta el origen del disparo a la posición del arma en cada postura.
+* Impide disparar al interactuar con botones o menús.
+* Un clic en "Iniciar" o "Continuar" no debe producir un disparo: exige soltar el botón antes de comenzar a disparar.
+AGACHARSE PARA ESQUIVAR
+* Usa S o flecha abajo mientras el personaje esté apoyado en el suelo.
+* Reduce aproximadamente a la mitad su altura y su zona de colisión, manteniendo los pies en la misma posición.
+* Reduce su velocidad horizontal mientras esté agachado.
+* La reducción de altura debe permitir esquivar proyectiles que antes impactaban en la parte superior del cuerpo.
+* Al soltar la tecla, recupera su altura solamente si hay espacio libre encima.
+* Evita que ponerse de pie introduzca al personaje dentro de una plataforma.
+* No actives la postura agachada en el aire.
+VUELO CORTO
+* Agrega un propulsor activado al mantener Shift mientras el robot está en el aire.
+* Conserva espacio para el salto normal.
+* Mientras haya energía, el propulsor debe contrarrestar la gravedad y permitir ascender con una velocidad máxima controlada.
+* Limita la energía a dos segundos de uso continuo.
+* Al soltar Shift o agotarse la energía, vuelve a actuar la gravedad normal.
+* Recarga completamente la energía en 1,5 segundos mientras esté apoyado en el suelo o una plataforma.
+* Muestra una barra de energía.
+* Impide atravesar techos, plataformas y límites del escenario durante el vuelo.
+EQUILIBRIO Y LÍMITES
+* Conserva los tres corazones y la invulnerabilidad temporal después de recibir daño.
+* Mantén las dos fases y los patrones del jefe.
+* Revisa que sus ataques puedan esquivarse con las nuevas habilidades y que el jugador pueda alcanzarlo con sus disparos.
+* Mantén alcanzable el recorrido original mediante saltos normales; el vuelo será una ayuda adicional.
+* Pausar debe congelar también el vuelo, su energía y todos los tiempos de espera.
+* Reiniciar debe restaurar postura, energía, vida, proyectiles y estados del combate.
+* No agregues armas, niveles, enemigos ni dependencias.
+* No reconstruyas el proyecto desde cero: modifica el código actual.
+FORMATO DE RESPUESTA
+1. Resume los cambios y presenta los controles actualizados.
+2. Entrega los archivos modificados completos.
+3. Explica brevemente el vector de apuntado, el límite angular, la postura agachada y el propulsor.
+4. Incluye pruebas de apuntado hacia ambos lados, disparos diagonales, movimiento independiente del apuntado, agacharse bajo obstáculos, agotamiento y recarga de energía, pausa y reinicio.
+5. Distingue los resultados comprobados de los pendientes y señala cualquier limitación.
+Prioriza controles fluidos y predecibles, con movimiento independiente de la velocidad de fotogramas.
+```
+
+</details>
+
+**Cambios respecto a la versión 4:**
+
+| Elemento | Versión 4 | Versión 5 |
+|---|---|---|
+| Disparo | J, siempre horizontal hacia donde camina | Clic izquierdo, hacia el cursor (±60°), sin importar hacia dónde camina |
+| Pulso | Se mueve solo en X | Se mueve con un vector unitario; el alcance se mide por distancia recorrida |
+| Postura | Solo de pie | Agachado con S: 24 px de alto (antes 48), velocidad 3 (antes 5) |
+| Vuelo | No había | Propulsor con Shift en el aire: 2 s de energía, recarga en 1,5 s |
+| HUD | Corazones e indicador de J | Además, barra del propulsor, mira y línea de apuntado |
+| Ráfaga del jefe | Apuntaba al centro del robot | Apunta al pecho (borde superior + 10 px), para que agacharse sirva para esquivarla |
+| Bucle principal | Una actualización por cuadro | Paso fijo de 1/60 s: misma velocidad a cualquier FPS |
+
 ---
 
 ## Cómo funciona (resumen técnico)
@@ -420,11 +524,58 @@ FORMATO DE RESPUESTA
 - **Ataque:** `ESPERA_PULSO = 18` cuadros (0,3 s). En cada cuadro de juego, si J está presionada (`teclas[pygame.K_j]`), se intenta lanzar un pulso. `puede_atacar()` solo lo permite con la espera en 0, menos de 2 pulsos activos y la partida en curso. Por eso, manteniendo J sale un pulso cada 18 cuadros, sin pasar de 2 a la vez.
 - **Fases:** el jefe guarda `fase` (1 o 2). `recibir_impacto()` resta 1 y, si estaba en la fase 1 y quedó con 6 o menos, pasa a la fase 2 y activa `anuncio_fase` (90 cuadros). Como solo cambia cuando `fase == 1`, la transición ocurre una sola vez. En la fase 2 se mueve a 2,4 px por cuadro, guardando su posición con decimales (`self.x`), y descansa 48 cuadros.
 
+### Versión 5: apuntado, agacharse y propulsor
+
+- **Vector de apuntado:** en cada paso, el cursor (en píxeles de pantalla) se pasa al mundo sumándole `camara_x`. `apuntar()` resta la posición del hombro del robot y obtiene `dx` y `dy`. Si el cursor está a menos de 1 px del hombro, se conserva la dirección anterior.
+- **Límite angular:** el ángulo se calcula con `atan2(-dy, abs(dx))`.
+  - El `-dy` es porque en pantalla la Y crece hacia abajo; así, los ángulos positivos son hacia arriba.
+  - El `abs(dx)` mide siempre desde la horizontal del lado hacia el que se apunta, y así el mismo rango sirve reflejado hacia la izquierda.
+  - El ángulo se limita a [−60°, 60°] y se convierte en el vector `(lado · cos, −sin)`, que siempre mide 1. Por eso el pulso avanza 8 px por paso en cualquier dirección, sin importar qué tan lejos esté el cursor.
+  - El lado al que mira el robot lo decide el cursor, no el movimiento.
+- **Disparo:** el pulso sale de la boca del arma (hombro + 20 px en la dirección). En cada paso suma a `recorrido` la distancia avanzada y desaparece a los 350 px.
+  - Mantener el clic dispara cada 18 pasos (0,3 s), con un máximo de 2 pulsos.
+  - Después de Iniciar, Reiniciar, Volver a jugar o Continuar, `esperar_soltar_clic` exige soltar el botón antes de disparar.
+- **Agacharse:** con S o flecha abajo, y solo si está apoyado, la altura pasa de 48 a 24 px y los pies quedan en el mismo lugar. La velocidad baja a 3 y el hombro (origen del disparo) baja con él. Al soltar, `levantarse()` prueba el rectángulo de pie; si chocaría con un sólido, sigue agachado. Saltar estando agachado también exige poder levantarse.
+- **Propulsor:** con Shift, en el aire y con energía, la velocidad vertical cambia `+1 (gravedad) − 2 (empuje)` = 1 px/paso² hacia arriba, hasta un máximo de 6 px/paso. Las colisiones son las mismas, así que choca con los techos, y además no puede pasar del borde superior de la pantalla.
+  - La energía se guarda en unidades enteras para evitar errores de redondeo: 360 en total, gasta 3 por paso (2 s) y recarga 4 por paso en el suelo (1,5 s).
+- **Independencia de los FPS (paso fijo):** el bucle mide el tiempo real con `reloj.tick()` y lo acumula. Ejecuta `actualizar()` una vez por cada 1/60 s acumulado. A 30 FPS hace 2 pasos por cuadro y a 144 FPS, a veces ninguno. Así el juego va a la misma velocidad en cualquier computadora. Hay un tope de 0,25 s para que, después de un bloqueo de la ventana, no "salte" hacia adelante.
+
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 5: 136 de 136 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Repiten las de las versiones 3 y 4 adaptadas al disparo con clic, y agregan:
+
+| Regla | Resultado |
+|---|---|
+| Cursor a la derecha: 0° y vector (1, 0); 45° arriba da `dy` negativo en pantalla | ✅ |
+| 80° se limita a +60°; −85° se limita a −60° | ✅ |
+| Hacia la izquierda el rango se refleja (30°, y −70° → −60°) | ✅ |
+| Cursor justo encima: conserva el lado y limita a 60°; cursor sobre el arma: conserva la dirección | ✅ |
+| Para todos los ángulos de −90° a 90°, ambos lados y distancias de 5 a 900 px: vector de largo 1 y ángulo dentro del rango | ✅ |
+| Con la cámara desplazada, el cursor se convierte bien a coordenadas del mundo | ✅ |
+| Camina a la izquierda mientras dispara a la derecha | ✅ |
+| Diagonales a 45° (derecha) y 30° (izquierda): línea recta, 8 px por paso, 350 px de alcance | ✅ |
+| Cursor cerca o lejos: el pulso avanza igual | ✅ |
+| Mantener el clic: un pulso cada 0,3 s y nunca más de 2 | ✅ |
+| Se dispara agachado, saltando y volando; el arma baja al agacharse | ✅ |
+| El clic en Iniciar o Continuar no dispara: hay que soltar y volver a presionar | ✅ |
+| No se dispara en inicio, pausa, victoria ni derrota | ✅ |
+| S o flecha abajo: altura 24 con los pies en el mismo lugar; velocidad 3; no se agacha en el aire | ✅ |
+| Bajo un obstáculo de 34 px: de pie choca; agachado pasa; al soltar S sigue agachado; no puede saltar; al salir se levanta sin meterse en la plataforma | ✅ |
+| Un disparo de ráfaga que golpea al robot de pie no lo toca si se agacha | ✅ |
+| Shift en el suelo no hace nada; con salto + Shift sube mucho más que los 136 px del salto | ✅ |
+| Subida limitada a 6 px por paso; la energía dura exactamente 120 pasos (2 s) | ✅ |
+| Al soltar Shift o sin energía vuelve la gravedad; la recarga tarda exactamente 90 pasos (1,5 s) | ✅ |
+| Volando no atraviesa plataformas ni sale por arriba o por los costados | ✅ |
+| La pausa congela el vuelo, la energía y los tiempos; Volver a jugar restaura postura, energía, vida y combate | ✅ |
+| Los proyectiles bajos se esquivan saltando con propulsor; el jugador automático sigue ganando (13 s) | ✅ |
+
+También se probó el **bucle principal real** con un reloj falso:
+- a 30, 60 y 144 FPS se simulan ~120 pasos por cada 2 s reales, así que la velocidad del juego es la misma;
+- mantener el clic de "Iniciar" durante 1 s no lanza ningún pulso, y al soltar y volver a presionar sí dispara.
 
 **Versión 4: 91 de 91 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Repiten las de la versión 3, adaptadas a los nuevos tiempos y botones, y agregan:
 
@@ -524,6 +675,9 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 4. **El indicador decía "listo" después de perder,** aunque el ataque estaba bloqueado. Se vio en una captura. **Ajuste:** `puede_atacar()` también revisa que la partida siga en curso.
 5. **(Versión 3) Reaparecer al filo del hueco:** al principio, la posición segura era el último lugar donde el robot estuvo apoyado, que muchas veces es el borde del hueco. Una prueba mostró que, con la tecla todavía presionada, el robot volvía a caer enseguida y perdía otro corazón. **Ajuste:** solo se guarda una posición con al menos 100 px de suelo a cada lado (`MARGEN_SEGURO`). Para eso el jugador ahora recuerda sobre qué sólido está parado (`apoyo`).
 6. **(Versión 4) Textos encimados en la pausa:** en una captura, el anuncio "FASE 2" quedaba detrás del título "Pausa". **Ajuste:** el anuncio solo se dibuja mientras se juega. Como su tiempo no corre en pausa, sigue visible al continuar.
+7. **(Versión 5) Energía con errores de redondeo:** al principio, la energía se guardaba en segundos y se restaba 1/60 por paso. Las pruebas mostraron que duraba 121 pasos en vez de 120 y que recargaba en 91 en vez de 90, porque 2,0 − 120 × (1/60) no da exactamente 0 en decimales. **Ajuste:** se cuenta en unidades enteras (360; gasta 3 y recarga 4 por paso).
+8. **(Versión 5) Agacharse no esquivaba la ráfaga:** la ráfaga apuntaba al centro del robot, y ese punto sigue dentro del cuerpo agachado. **Ajuste:** apunta al pecho (borde superior + 10 px). Un disparo hecho al robot de pie le pasa por encima si se agacha.
+9. **(Versión 5) Posición segura con la altura variable:** como ahora la altura del robot cambia, la posición segura se guarda por los pies (`bottomleft`). Si se guardara la esquina superior, el robot podría reaparecer metido en el suelo.
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -582,6 +736,21 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 44. Pulsar Salir en el inicio, en la pausa y al terminar la partida: el juego se cierra. También cerrar con la X de la ventana.
 45. Presionar R y Escape en cualquier momento: no hacen nada.
 
+**Apuntado, agacharse y propulsor (versión 5):**
+
+46. Mover el ratón alrededor del robot: el arma y la línea amarilla siguen al cursor. Arriba o abajo del robot, la línea se queda en 60°.
+47. Disparar hacia la derecha y hacia la izquierda, recto y en diagonal: el pulso va hacia el cursor (o hacia el ángulo límite), siempre a la misma velocidad.
+48. Caminar hacia un lado mientras se apunta y dispara hacia el otro.
+49. Mantener el clic: sale un pulso cada 0,3 s y nunca hay más de 2.
+50. Avanzar con la cámara desplazada (mitad del nivel) y apuntar: la mira y el disparo coinciden con el cursor.
+51. Pulsar Iniciar o Continuar sin soltar el botón: no sale ningún disparo hasta soltar y volver a hacer clic.
+52. Agacharse (S): el robot se hace más bajo y más lento. En el aire, S no hace nada.
+53. Con el jefe: agacharse justo después de que dispare la ráfaga; el disparo pasa por encima.
+54. Saltar y mantener Shift: el robot sube con llama y la barra baja. A los 2 s se acaba y vuelve a caer. Al aterrizar, la barra se llena en 1,5 s.
+55. Volar debajo de una plataforma: choca y no la atraviesa. Volar hacia arriba en la arena: no sale de la pantalla.
+56. Pausar mientras vuela: el robot queda quieto en el aire y la barra no cambia. Al continuar, sigue igual.
+57. Perder agachado o con la energía a medias y pulsar Volver a jugar: de pie, con energía llena y 3 corazones.
+
 ### Limitaciones conocidas
 
 - Las pruebas automáticas no reemplazan jugarlo: falta probarlo con ventana real y teclado.
@@ -596,7 +765,12 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 4)** El indicador del ataque dice "recargando" en la pausa y al terminar la partida. En realidad está bloqueado, no recargando.
 - **(Versión 3)** Tocar un enemigo no empuja al robot hacia atrás. Si se queda encima del enemigo después de parpadear, pierde otro corazón.
 - **(Versión 3)** Detrás del jefe hay un espacio de 40 px cuando está en su extremo derecho. Si el robot salta por encima y se queda ahí, el jefe se da vuelta y le dispara hacia ese lado.
-- **Pendiente:** jugar las versiones 2, 3 y 4 con ventana, teclado y ratón reales (pruebas manuales 10 a 45).
+- **(Versión 5)** Agacharse solo esquiva la ráfaga. Los proyectiles bajos van por el suelo y se esquivan saltando o con el propulsor.
+- **(Versión 5)** El propulsor permite cruzar los huecos y saltarse partes del nivel. Es la "ayuda adicional" pedida. El recorrido sigue siendo posible solo con saltos normales (comprobado).
+- **(Versión 5)** Si se mantiene S al bajar de una plataforma caminando, el robot sigue agachado en el aire (no se agacha en el aire, pero tampoco se levanta solo mientras la tecla siga presionada).
+- **(Versión 5)** Con el paso fijo, si la computadora va a menos de ~4 FPS (más de 0,25 s por cuadro), el juego se ve más lento en vez de saltar hacia adelante. Es intencional.
+- **(Versión 5)** Durante la partida se oculta el cursor del sistema y se dibuja la mira. En los menús vuelve el cursor normal.
+- **Pendiente:** jugar las versiones 2 a 5 con ventana, teclado y ratón reales (pruebas manuales 10 a 57). Sobre todo, falta sentir si el apuntado, el agacharse y el propulsor resultan cómodos.
 
 ## Reflexión final
 

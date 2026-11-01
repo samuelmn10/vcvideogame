@@ -1,11 +1,14 @@
 """
-RoboAventura - Mini-juego de plataformas 2D (versión 4).
+RoboAventura - Mini-juego de plataformas 2D (versión 5).
 
 Controles:
     A / D o flechas izquierda / derecha -> moverse
     Espacio                             -> saltar
-    J (se puede mantener presionada)    -> lanzar pulsos de energía
-    Ratón (clic izquierdo)              -> botones: Iniciar, Pausa, Continuar,
+    S o flecha abajo (en el suelo)      -> agacharse
+    Shift (en el aire)                  -> propulsor (vuelo corto)
+    Ratón                               -> apuntar (±60° hacia cada lado)
+    Clic izquierdo (se puede mantener)  -> disparar pulsos de energía
+    Clic izquierdo en los menús         -> botones: Iniciar, Pausa, Continuar,
                                            Reiniciar, Volver a jugar y Salir
 """
 
@@ -21,13 +24,28 @@ ANCHO_VENTANA = 960
 ALTO_VENTANA = 600
 ANCHO_NIVEL = 2880
 FPS = 60
+PASO = 1 / FPS               # cada actualización simula siempre 1/60 s (paso fijo)
 
-# Física: los valores están en píxeles por cuadro (el juego corre a 60 FPS).
+# Física: los valores están en píxeles por paso de 1/60 s.
 GRAVEDAD = 1
 VELOCIDAD_SALTO = -17        # negativo = hacia arriba (el eje Y crece hacia abajo)
 VELOCIDAD_CAIDA_MAX = 15     # menor que el grosor de las plataformas para no atravesarlas
 VELOCIDAD_JUGADOR = 5
+VELOCIDAD_AGACHADO = 3       # más lento al estar agachado
 VELOCIDAD_ENEMIGO = 3        # en la versión 1 era 2
+
+# Propulsor (vuelo corto)
+# La energía se cuenta en unidades enteras para evitar errores de redondeo:
+# 360 unidades duran 2 s de uso (3 por paso) y se recargan en 1,5 s (4 por paso).
+ENERGIA_MAXIMA = 360
+GASTO_PROPULSOR = 3          # 360 / (2,0 s × 60 pasos)
+RECARGA_PROPULSOR = 4        # 360 / (1,5 s × 60 pasos)
+EMPUJE_PROPULSOR = 2         # contrarresta la gravedad (1) y deja 1 px/paso² hacia arriba
+VELOCIDAD_SUBIDA_MAX = 6     # velocidad máxima de ascenso
+
+# Apuntado
+ANGULO_MAXIMO = 60           # grados hacia arriba o hacia abajo desde la horizontal
+LARGO_ARMA = 20              # distancia del hombro a la boca del arma
 
 # Pulso de energía
 VELOCIDAD_PULSO = 8          # con 8 px/cuadro dura ~44 cuadros, así caben 2 pulsos activos
@@ -116,6 +134,8 @@ COLOR_PROYECTIL_BAJO = (255, 140, 40)
 COLOR_BOTON = (60, 70, 120)
 COLOR_BOTON_ENCIMA = (95, 110, 190)
 COLOR_BORDE_BOTON = (130, 140, 190)
+COLOR_ARMA = (60, 70, 90)
+COLOR_FUEGO = (255, 170, 50)
 
 # ---------------------------------------------------------------------------
 # Diseño del nivel
@@ -162,8 +182,8 @@ ZONAS_ENEMIGOS = [
     (1380, 1620, 430),           # encima de la plataforma 5 (sus mismos bordes)
     (2050, 2500, ALTURA_SUELO),  # suelo del último tramo, antes del portal
 ]
-POSICION_INICIAL = (80, ALTURA_SUELO - 48)
-PORTAL = (2740, ALTURA_SUELO - 110, 70, 110)  # (x, y, ancho, alto)
+POSICION_INICIAL = (80, ALTURA_SUELO - 48)  # esquina superior izquierda (de pie)
+PORTAL =(2740, ALTURA_SUELO - 110, 70, 110)  # (x, y, ancho, alto)
 
 # Arena del jefe: ocupa exactamente la ventana (sin cámara)
 POSICION_INICIAL_ARENA = (80, ALTURA_SUELO - 48)  # extremo izquierdo
@@ -201,29 +221,92 @@ class Jugador:
 
     ANCHO = 36
     ALTO = 48
+    ALTO_AGACHADO = 24  # la mitad: los pies quedan en el mismo lugar
 
     def __init__(self, x, y):
         self.rect = pygame.Rect(x, y, self.ANCHO, self.ALTO)
         self.vel_y = 0
         self.en_suelo = False
         self.apoyo = None  # sólido sobre el que está parado (None si está en el aire)
-        self.mirando_derecha = True
+        self.mirando_derecha = True  # lo decide el apuntado, no el movimiento
+        self.agachado = False
+        self.volando = False
+        self.energia = ENERGIA_MAXIMA  # energía del propulsor disponible
+        self.angulo = 0.0  # grados respecto a la horizontal (positivo = hacia arriba)
+        self.direccion_disparo = (1.0, 0.0)  # vector unitario hacia donde apunta el arma
 
-    def saltar(self):
+    # ----- Postura ----------------------------------------------------------
+    def agacharse(self):
+        pies = self.rect.bottom
+        self.rect.height = self.ALTO_AGACHADO
+        self.rect.bottom = pies
+        self.agachado = True
+
+    def levantarse(self, solidos):
+        """Recupera la altura normal solo si hay espacio libre encima."""
+        de_pie = pygame.Rect(self.rect.x, self.rect.bottom - self.ALTO, self.ANCHO, self.ALTO)
+        if de_pie.top < 0 or de_pie.collidelist(solidos) != -1:
+            return False  # se quedaría metido en una plataforma
+        self.rect = de_pie
+        self.agachado = False
+        return True
+
+    def saltar(self, solidos):
         # Solo se puede saltar si está apoyado: así se evita saltar en el aire.
+        # Si está agachado, primero intenta ponerse de pie.
         if self.en_suelo:
+            if self.agachado and not self.levantarse(solidos):
+                return
             self.vel_y = VELOCIDAD_SALTO
             self.en_suelo = False
 
-    def actualizar(self, teclas, solidos, ancho_mundo):
-        # 1) Movimiento horizontal según las teclas presionadas
-        dx = 0
-        if teclas[pygame.K_a] or teclas[pygame.K_LEFT]:
-            dx -= VELOCIDAD_JUGADOR
-        if teclas[pygame.K_d] or teclas[pygame.K_RIGHT]:
-            dx += VELOCIDAD_JUGADOR
+    # ----- Apuntado ---------------------------------------------------------
+    def punto_arma(self):
+        """Hombro del robot, desde donde sale el arma. Depende de la postura."""
+        altura = 12 if self.agachado else 30
+        return self.rect.centerx, self.rect.top + altura
+
+    def origen_disparo(self):
+        """Boca del arma: el hombro más el largo del arma en la dirección actual."""
+        hombro_x, hombro_y = self.punto_arma()
+        dir_x, dir_y = self.direccion_disparo
+        return hombro_x + dir_x * LARGO_ARMA, hombro_y + dir_y * LARGO_ARMA
+
+    def apuntar(self, objetivo_x, objetivo_y):
+        """Orienta el arma hacia un punto del mundo, con el ángulo limitado a ±60°."""
+        hombro_x, hombro_y = self.punto_arma()
+        dx = objetivo_x - hombro_x
+        dy = objetivo_y - hombro_y
+        if math.hypot(dx, dy) < 1:
+            return  # cursor sobre el arma: se conserva la última dirección válida
         if dx != 0:
             self.mirando_derecha = dx > 0
+        lado = 1 if self.mirando_derecha else -1
+        # En pantalla el eje Y crece hacia abajo; con -dy el ángulo positivo es hacia arriba.
+        # Con abs(dx) el ángulo se mide desde la horizontal del lado al que se apunta,
+        # así el mismo rango sirve reflejado hacia la izquierda.
+        angulo = math.degrees(math.atan2(-dy, abs(dx)))
+        self.angulo = max(-ANGULO_MAXIMO, min(ANGULO_MAXIMO, angulo))
+        radianes = math.radians(self.angulo)
+        # cos y sin dan un vector de largo 1: la velocidad no depende de la distancia al cursor
+        self.direccion_disparo = (lado * math.cos(radianes), -math.sin(radianes))
+
+    # ----- Movimiento -------------------------------------------------------
+    def actualizar(self, teclas, solidos, ancho_mundo):
+        # 0) Postura: se agacha solo apoyado; se levanta solo si hay espacio encima
+        quiere_agacharse = teclas[pygame.K_s] or teclas[pygame.K_DOWN]
+        if quiere_agacharse and self.en_suelo and not self.agachado:
+            self.agacharse()
+        elif not quiere_agacharse and self.agachado:
+            self.levantarse(solidos)
+
+        # 1) Movimiento horizontal según las teclas presionadas
+        velocidad = VELOCIDAD_AGACHADO if self.agachado else VELOCIDAD_JUGADOR
+        dx = 0
+        if teclas[pygame.K_a] or teclas[pygame.K_LEFT]:
+            dx -= velocidad
+        if teclas[pygame.K_d] or teclas[pygame.K_RIGHT]:
+            dx += velocidad
 
         self.rect.x += dx
         # Si choca de lado con un sólido, se pega a su borde
@@ -238,8 +321,14 @@ class Jugador:
         self.rect.left = max(self.rect.left, 0)
         self.rect.right = min(self.rect.right, ancho_mundo)
 
-        # 2) Gravedad y movimiento vertical
-        self.vel_y = min(self.vel_y + GRAVEDAD, VELOCIDAD_CAIDA_MAX)
+        # 2) Gravedad o propulsor (Shift, solo en el aire y con energía)
+        usa_propulsor = teclas[pygame.K_LSHIFT] or teclas[pygame.K_RSHIFT]
+        self.volando = usa_propulsor and not self.en_suelo and self.energia > 0
+        if self.volando:
+            self.energia = max(0, self.energia - GASTO_PROPULSOR)
+            self.vel_y = max(self.vel_y + GRAVEDAD - EMPUJE_PROPULSOR, -VELOCIDAD_SUBIDA_MAX)
+        else:
+            self.vel_y = min(self.vel_y + GRAVEDAD, VELOCIDAD_CAIDA_MAX)
         self.rect.y += self.vel_y
 
         self.en_suelo = False
@@ -252,29 +341,60 @@ class Jugador:
                     self.en_suelo = True
                     self.apoyo = solido
                 elif self.vel_y < 0:
-                    # Venía subiendo: se golpea la cabeza por debajo
+                    # Venía subiendo: se golpea la cabeza por debajo (también volando)
                     self.rect.top = solido.bottom
                 self.vel_y = 0
 
+        # Tampoco puede salir por arriba de la pantalla al volar
+        if self.rect.top < 0:
+            self.rect.top = 0
+            self.vel_y = max(self.vel_y, 0)
+
+        # 3) El propulsor se recarga por completo en 1,5 s estando apoyado
+        if self.en_suelo:
+            self.energia = min(ENERGIA_MAXIMA, self.energia + RECARGA_PROPULSOR)
+
+    # ----- Dibujo -----------------------------------------------------------
     def dibujar(self, pantalla, camara_x):
         x = self.rect.x - camara_x
         y = self.rect.y
         centro_x = x + self.ANCHO // 2
-
-        # Antena
-        pygame.draw.line(pantalla, COLOR_ROBOT, (centro_x, y + 4), (centro_x, y - 4), 2)
-        pygame.draw.circle(pantalla, COLOR_ANTENA, (centro_x, y - 5), 3)
-        # Cabeza con visor y un ojo que mira hacia donde camina
-        pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 3, y + 4, 30, 20), border_radius=6)
-        pygame.draw.rect(pantalla, COLOR_VISOR, (x + 7, y + 9, 22, 10), border_radius=4)
         ojo_x = x + 22 if self.mirando_derecha else x + 14
-        pygame.draw.circle(pantalla, COLOR_OJO, (ojo_x, y + 14), 4)
-        # Cuerpo con un detalle en el pecho
-        pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 6, y + 24, 24, 17), border_radius=4)
-        pygame.draw.rect(pantalla, COLOR_PECHO, (x + 14, y + 28, 8, 8), border_radius=2)
-        # Piernas
-        pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 9, y + 41, 7, 7))
-        pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 20, y + 41, 7, 7))
+
+        if self.agachado:
+            # Agachado: cabeza baja, cuerpo comprimido y piernas dobladas
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 3, y, 30, 14), border_radius=5)
+            pygame.draw.rect(pantalla, COLOR_VISOR, (x + 7, y + 3, 22, 8), border_radius=3)
+            pygame.draw.circle(pantalla, COLOR_OJO, (ojo_x, y + 7), 3)
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 4, y + 13, 28, 8), border_radius=3)
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 6, y + 20, 10, 4))
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 20, y + 20, 10, 4))
+        else:
+            # Antena
+            pygame.draw.line(pantalla, COLOR_ROBOT, (centro_x, y + 4), (centro_x, y - 4), 2)
+            pygame.draw.circle(pantalla, COLOR_ANTENA, (centro_x, y - 5), 3)
+            # Cabeza con visor y un ojo que mira hacia donde apunta
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 3, y + 4, 30, 20), border_radius=6)
+            pygame.draw.rect(pantalla, COLOR_VISOR, (x + 7, y + 9, 22, 10), border_radius=4)
+            pygame.draw.circle(pantalla, COLOR_OJO, (ojo_x, y + 14), 4)
+            # Cuerpo con un detalle en el pecho
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 6, y + 24, 24, 17), border_radius=4)
+            pygame.draw.rect(pantalla, COLOR_PECHO, (x + 14, y + 28, 8, 8), border_radius=2)
+            # Piernas
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 9, y + 41, 7, 7))
+            pygame.draw.rect(pantalla, COLOR_ROBOT, (x + 20, y + 41, 7, 7))
+
+        # Llama del propulsor
+        if self.volando:
+            base = self.rect.bottom
+            pygame.draw.polygon(pantalla, COLOR_FUEGO, [(centro_x - 7, base), (centro_x + 7, base), (centro_x, base + 14)])
+            pygame.draw.polygon(pantalla, COLOR_AVISO, [(centro_x - 3, base), (centro_x + 3, base), (centro_x, base + 7)])
+
+        # Arma: un cañón del hombro a la boca, en la dirección real del disparo
+        hombro_x, hombro_y = self.punto_arma()
+        boca_x, boca_y = self.origen_disparo()
+        pygame.draw.line(pantalla, COLOR_ARMA, (hombro_x - camara_x, hombro_y), (boca_x - camara_x, boca_y), 6)
+        pygame.draw.circle(pantalla, COLOR_PULSO, (round(boca_x - camara_x), round(boca_y)), 3)
 
 
 class Enemigo:
@@ -316,37 +436,38 @@ class Enemigo:
 
 
 class Pulso:
-    """Pulso de energía que viaja en línea recta hacia donde mira el robot."""
+    """Pulso de energía que viaja en línea recta en la dirección del arma."""
 
-    ANCHO = 18
-    ALTO = 10
+    RADIO = 7
 
-    def __init__(self, jugador, ancho_mundo):
-        self.direccion = 1 if jugador.mirando_derecha else -1
+    def __init__(self, origen, direccion, ancho_mundo):
+        # Posición con decimales para que las diagonales sean precisas
+        self.x, self.y = origen
+        self.dir_x, self.dir_y = direccion  # vector unitario (largo 1)
         self.ancho_mundo = ancho_mundo  # ancho del nivel o de la arena
-        self.rect = pygame.Rect(0, 0, self.ANCHO, self.ALTO)
-        # Nace pegado al frente del robot, a la altura de su centro
-        if self.direccion == 1:
-            self.rect.midleft = jugador.rect.midright
-        else:
-            self.rect.midright = jugador.rect.midleft
-        self.recorrido = 0  # píxeles avanzados desde el lanzamiento
+        self.rect = pygame.Rect(0, 0, self.RADIO * 2, self.RADIO * 2)
+        self.rect.center = (round(self.x), round(self.y))
+        self.recorrido = 0.0  # distancia recorrida desde el lanzamiento
 
     def actualizar(self):
-        # El último paso se recorta para no pasar de ALCANCE_PULSO
+        # El último paso se recorta para no pasar de ALCANCE_PULSO. Como la dirección
+        # mide 1, "paso" es la distancia real recorrida, también en diagonal.
         paso = min(VELOCIDAD_PULSO, ALCANCE_PULSO - self.recorrido)
-        self.rect.x += paso * self.direccion
+        self.x += self.dir_x * paso
+        self.y += self.dir_y * paso
         self.recorrido += paso
+        self.rect.center = (round(self.x), round(self.y))
 
     def termino_alcance(self):
         """True si ya recorrió su distancia máxima o salió del escenario."""
         return (self.recorrido >= ALCANCE_PULSO
-                or self.rect.right < 0 or self.rect.left > self.ancho_mundo)
+                or self.rect.right < 0 or self.rect.left > self.ancho_mundo
+                or self.rect.bottom < 0 or self.rect.top > ALTO_VENTANA)
 
     def dibujar(self, pantalla, camara_x):
-        rect = self.rect.move(-camara_x, 0)
-        pygame.draw.ellipse(pantalla, COLOR_PULSO, rect)
-        pygame.draw.ellipse(pantalla, COLOR_PULSO_CENTRO, rect.inflate(-8, -4))
+        centro = (self.rect.centerx - camara_x, self.rect.centery)
+        pygame.draw.circle(pantalla, COLOR_PULSO, centro, self.RADIO)
+        pygame.draw.circle(pantalla, COLOR_PULSO_CENTRO, centro, 3)
 
 
 class Bateria:
@@ -478,9 +599,10 @@ class Jefe:
             return
         x, y = self.punto_canon()
         if self.patron == RAFAGA:
-            # Apunta a donde está el jugador en este momento; después sigue recto
+            # Apunta al pecho del jugador en este momento; después sigue recto.
+            # Si el robot se agacha después del disparo, el proyectil le pasa por encima.
             dx = jugador.rect.centerx - x
-            dy = jugador.rect.centery - y
+            dy = jugador.rect.top + 10 - y
             distancia = math.hypot(dx, dy) or 1
             proyectiles.append(Proyectil(x, y, dx / distancia * VELOCIDAD_PROYECTIL,
                                          dy / distancia * VELOCIDAD_PROYECTIL, False))
@@ -575,6 +697,7 @@ class Juego:
         """Usado por "Iniciar", "Reiniciar" y "Volver a jugar"."""
         self.reiniciar()
         self.estado = JUGANDO
+        self.esperar_soltar_clic = True  # el clic del botón no debe disparar
 
     def manejar_clic(self, pos):
         """Ejecuta la acción del botón pulsado (como máximo uno) y la devuelve."""
@@ -586,6 +709,7 @@ class Juego:
                     self.estado = PAUSA
                 elif boton.accion == CONTINUAR:
                     self.estado = JUGANDO
+                    self.esperar_soltar_clic = True
                 return boton.accion  # SALIR lo atiende el bucle principal
         return None
 
@@ -595,7 +719,7 @@ class Juego:
         self.solidos = crear_solidos()
         self.portal = pygame.Rect(PORTAL)
         self.jugador = Jugador(*POSICION_INICIAL)
-        self.posicion_segura = POSICION_INICIAL  # último lugar donde el robot estuvo apoyado
+        self.posicion_segura = self.jugador.rect.bottomleft  # pies en el último lugar seguro
         self.enemigos = [Enemigo(*zona) for zona in ZONAS_ENEMIGOS]
         self.baterias = [Bateria(x, y) for x, y in BATERIAS]
         self.pulsos = []
@@ -604,6 +728,7 @@ class Juego:
         self.invulnerable = 0  # cuadros que faltan de invulnerabilidad
         self.jefe = None
         self.proyectiles = []
+        self.esperar_soltar_clic = False  # True: hay que soltar el clic antes de disparar
         self.contador = 0
         self.estado = JUGANDO
         self.motivo_derrota = ""
@@ -613,12 +738,9 @@ class Juego:
         return ANCHO_NIVEL if self.escena == NIVEL else ANCHO_VENTANA
 
     def manejar_tecla(self, tecla):
-        # El teclado solo controla al robot; los menús se usan con el ratón
-        if self.estado == JUGANDO:
-            if tecla == pygame.K_SPACE:
-                self.jugador.saltar()
-            elif tecla == pygame.K_j:
-                self.lanzar_pulso()
+        # El teclado solo mueve al robot; se dispara y se usan los menús con el ratón
+        if self.estado == JUGANDO and tecla == pygame.K_SPACE:
+            self.jugador.saltar(self.solidos)
 
     def puede_atacar(self):
         # En los menús, en pausa o al terminar la partida los ataques están bloqueados
@@ -628,7 +750,8 @@ class Juego:
     def lanzar_pulso(self):
         # Funciona igual en el suelo o en el aire
         if self.puede_atacar():
-            self.pulsos.append(Pulso(self.jugador, self.ancho_mundo()))
+            self.pulsos.append(Pulso(self.jugador.origen_disparo(),
+                                     self.jugador.direccion_disparo, self.ancho_mundo()))
             self.espera_pulso = ESPERA_PULSO
 
     def actualizar_pulsos(self):
@@ -662,12 +785,13 @@ class Juego:
         # Como vuelve arriba en el mismo cuadro, la misma caída no daña dos veces.
         self.vidas -= 1
         self.invulnerable = INVULNERABILIDAD
-        self.jugador.rect.topleft = self.posicion_segura
+        self.jugador.rect.bottomleft = self.posicion_segura
         self.jugador.vel_y = 0
 
-    def actualizar(self, teclas):
+    def actualizar(self, teclas, pos_raton=None, clic_presionado=False):
+        """Avanza el juego un paso fijo de 1/60 s."""
         # En el menú, en pausa o con la partida terminada no se mueve nada:
-        # tampoco bajan la espera del ataque ni la invulnerabilidad.
+        # tampoco bajan la espera del ataque, la invulnerabilidad ni la energía.
         if self.estado != JUGANDO:
             return
 
@@ -675,16 +799,24 @@ class Juego:
             self.espera_pulso -= 1
         if self.invulnerable > 0:
             self.invulnerable -= 1
-
-        # Mantener J presionada ataca de forma repetida, respetando la espera
-        if teclas[pygame.K_j]:
-            self.lanzar_pulso()
+        if not clic_presionado:
+            self.esperar_soltar_clic = False
 
         self.jugador.actualizar(teclas, self.solidos, self.ancho_mundo())
         if self.escena == NIVEL:
             self.actualizar_nivel()
         else:
             self.actualizar_arena()
+        if self.estado != JUGANDO:
+            return
+
+        # Apuntar: el cursor está en coordenadas de pantalla; sumando la cámara
+        # se obtiene su posición en el mundo
+        if pos_raton is not None:
+            self.jugador.apuntar(pos_raton[0] + self.camara_x, pos_raton[1])
+        # Mantener el clic dispara de forma repetida, respetando la espera
+        if clic_presionado and not self.esperar_soltar_clic:
+            self.lanzar_pulso()
 
     def actualizar_nivel(self):
         for enemigo in self.enemigos:
@@ -701,7 +833,7 @@ class Juego:
         apoyo = self.jugador.apoyo
         if (apoyo and self.jugador.rect.left - apoyo.left >= MARGEN_SEGURO
                 and apoyo.right - self.jugador.rect.right >= MARGEN_SEGURO):
-            self.posicion_segura = self.jugador.rect.topleft
+            self.posicion_segura = self.jugador.rect.bottomleft
 
         # Tocar a un enemigo resta un corazón (el ataque no da invulnerabilidad)
         if self.jugador.rect.collidelist([e.rect for e in self.enemigos]) != -1:
@@ -776,20 +908,36 @@ class Juego:
                 self.dibujar_mensaje(pantalla, "Fin de la partida", self.motivo_derrota)
         for boton in self.botones[self.estado]:
             boton.dibujar(pantalla, self.fuente, pos_raton)
+        if self.estado == JUGANDO:
+            self.dibujar_apuntado(pantalla, pos_raton)
+
+    def dibujar_apuntado(self, pantalla, pos_raton):
+        """Línea corta con la dirección real (ya limitada) y una mira en el cursor."""
+        boca_x, boca_y = self.jugador.origen_disparo()
+        dir_x, dir_y = self.jugador.direccion_disparo
+        inicio = (boca_x - self.camara_x, boca_y)
+        fin = (boca_x - self.camara_x + dir_x * 45, boca_y + dir_y * 45)
+        pygame.draw.line(pantalla, COLOR_AVISO, inicio, fin, 2)
+        mx, my = pos_raton
+        pygame.draw.circle(pantalla, COLOR_TEXTO, (mx, my), 10, 2)
+        pygame.draw.line(pantalla, COLOR_TEXTO, (mx - 15, my), (mx - 5, my), 2)
+        pygame.draw.line(pantalla, COLOR_TEXTO, (mx + 5, my), (mx + 15, my), 2)
+        pygame.draw.line(pantalla, COLOR_TEXTO, (mx, my - 15), (mx, my - 5), 2)
+        pygame.draw.line(pantalla, COLOR_TEXTO, (mx, my + 5), (mx, my + 15), 2)
 
     def dibujar_inicio(self, pantalla):
         self.dibujar_fondo(pantalla)
         titulo = self.fuente_titulo.render("RoboAventura", True, COLOR_TEXTO)
         pantalla.blit(titulo, titulo.get_rect(center=(ANCHO_VENTANA // 2, 110)))
         controles = [
-            "A / D o flechas: moverse",
-            "Espacio: saltar",
-            "J (puedes mantenerla): pulso de energía",
-            "Usa el ratón para los botones",
+            "A / D o flechas: moverse      Espacio: saltar",
+            "S o flecha abajo: agacharse",
+            "Shift en el aire: propulsor",
+            "Ratón: apuntar      Clic izquierdo: disparar",
         ]
         for i, linea in enumerate(controles):
             texto = self.fuente.render(linea, True, COLOR_TEXTO)
-            pantalla.blit(texto, texto.get_rect(center=(ANCHO_VENTANA // 2, 210 + i * 40)))
+            pantalla.blit(texto, texto.get_rect(center=(ANCHO_VENTANA // 2, 200 + i * 40)))
 
     def dibujar_partida(self, pantalla):
         if self.escena == NIVEL:
@@ -865,12 +1013,21 @@ class Juego:
         for i in range(VIDAS_MAXIMAS):
             dibujar_corazon(pantalla, 20 + i * 34, 56, i < self.vidas)
 
+        # Energía del propulsor
+        texto = self.fuente.render("Propulsor", True, COLOR_TEXTO)
+        pantalla.blit(texto, (20, 90))
+        barra = pygame.Rect(140, 96, 120, 12)
+        llena = barra.width * self.jugador.energia // ENERGIA_MAXIMA
+        pygame.draw.rect(pantalla, COLOR_CORAZON_VACIO, barra)
+        pygame.draw.rect(pantalla, COLOR_PULSO, (barra.x, barra.y, llena, barra.height))
+        pygame.draw.rect(pantalla, COLOR_TEXTO, barra, 2)
+
         # Indicador del ataque: verde si está listo, gris mientras recarga
         if self.puede_atacar():
             color, estado = COLOR_LISTO, "listo"
         else:
             color, estado = COLOR_RECARGANDO, "recargando"
-        texto = self.fuente.render(f"J: pulso ({estado})", True, color)
+        texto = self.fuente.render(f"Clic: pulso ({estado})", True, color)
         pantalla.blit(texto, texto.get_rect(topright=(ANCHO_VENTANA - 20, 20)))
         # Barra que se llena a medida que termina la espera
         progreso = 1 - self.espera_pulso / ESPERA_PULSO
@@ -916,7 +1073,11 @@ def main():
     juego = Juego()
 
     ejecutando = True
+    acumulado = 0.0  # tiempo real pendiente de simular
     while ejecutando:
+        # Paso fijo: se simulan tantos pasos de 1/60 s como tiempo real haya pasado.
+        # Así el juego va a la misma velocidad aunque la pantalla vaya a más o menos FPS.
+        acumulado += min(reloj.tick(FPS) / 1000, 0.25)  # tope para no "saltar" tras un bloqueo
         clic_atendido = False  # como máximo un clic por cuadro: un clic = una acción
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -928,10 +1089,17 @@ def main():
                 if juego.manejar_clic(evento.pos) == SALIR:
                     ejecutando = False
 
-        juego.actualizar(pygame.key.get_pressed())
-        juego.dibujar(pantalla, pygame.mouse.get_pos())
+        teclas = pygame.key.get_pressed()
+        pos_raton = pygame.mouse.get_pos()
+        clic_presionado = pygame.mouse.get_pressed()[0]
+        while acumulado >= PASO:
+            juego.actualizar(teclas, pos_raton, clic_presionado)
+            acumulado -= PASO
+
+        # Durante la partida se dibuja una mira en lugar del cursor del sistema
+        pygame.mouse.set_visible(juego.estado != JUGANDO)
+        juego.dibujar(pantalla, pos_raton)
         pygame.display.flip()
-        reloj.tick(FPS)
 
     pygame.quit()
     sys.exit()
