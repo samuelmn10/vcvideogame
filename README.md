@@ -1357,8 +1357,22 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 7)** El progreso se guarda junto al código (`progreso.json`). Si la carpeta es de solo lectura, el juego sigue funcionando, pero avisa que no pudo guardar.
 - **(Versión 7)** `requirements.txt` pide `pygame-ce` (antes pedía `pygame`, que no se instalaba en Python 3.14). Todas las pruebas se ejecutaron también con pygame 2.6.1, así que el código funciona con los dos.
 - **(Versión 7)** El superataque hace que cada 10 aciertos el daño total suba en 5 (un 50 % más). Los combates pueden sentirse más cortos que antes.
-- **Pendiente:** jugar los tres jefes con ventana, teclado y ratón reales (pruebas manuales 66 a 80), sobre todo comprobar en la Mac que el Embestidor ya se siente justo. Sobre todo, falta comprobar que la curva de dificultad sea justa para una persona.
+- **Comprobado por el estudiante:** en su Mac, con el ajuste final, la embestida del Embestidor ya se puede esquivar, y lo venció.
+- **Pendiente:** el resto de las pruebas manuales 66 a 80, y comprobar que la curva de dificultad de los tres jefes sea justa para una persona.
 
 ## Reflexión final
 
-_Pendiente: la escribe el estudiante._
+*Escrita por el estudiante.*
+
+**¿Qué aprendí usando IA para programar?**
+Lo que yo aprendí es que es una herramienta que ayuda mucho a que uno pueda trabajar sus ideas y las pueda realizar, sin tener mayor conocimiento de la programación.
+
+**¿Qué ventajas y límites le vi al vibecoding?**
+La ventaja es que con lenguaje natural uno puede manejar un tipo de lenguaje muy técnico y específico. Los límites son que siempre hay detalles que están fuera del alcance de una persona natural y del mismo código. Por lo tanto, siempre es importante ir revisando el resultado para ir iterando hasta pulir esos detalles.
+
+**¿Qué partes del código entiendo y cuáles necesito reforzar?**
+Prácticamente logro comprender la mayoría del código. La estructura del proyecto es algo que yo mismo sugerí, para tener todo de una manera más organizada: las configuraciones, el manejo del propio juego, lo que coordina las pantallas, junto con las demás funciones que ya están establecidas, con tal de llevar todo de manera modular.
+
+Logro comprender cómo se definen las variables, cómo se forman las funciones, cómo se llaman y cómo se importan módulos, como por ejemplo `pygame`, `sys` y `math`, que son importantes para poder crear el juego. Ya tengo una base de conocimiento de programación.
+
+Lo que sí necesitaría reforzar son ciertas palabras reservadas que sirven para llamar funciones de algún tipo específico.
