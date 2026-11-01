@@ -1,5 +1,5 @@
 """
-RoboAventura - Mini-juego de plataformas 2D (versión 2).
+RoboAventura - Mini-juego de plataformas 2D (versión 3).
 
 Controles:
     A / D o flechas izquierda / derecha -> moverse
@@ -9,6 +9,7 @@ Controles:
     Escape                              -> salir
 """
 
+import math
 import sys
 
 import pygame
@@ -34,10 +35,40 @@ ALCANCE_PULSO = 350          # distancia máxima en píxeles desde el punto de l
 ESPERA_PULSO = 36            # 0,6 segundos de espera entre ataques (0,6 × 60 cuadros)
 MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 
+# Vidas del robot
+VIDAS_MAXIMAS = 3
+INVULNERABILIDAD = 72        # 1,2 segundos sin recibir daño después de un golpe
+MARGEN_SEGURO = 100          # distancia mínima a los bordes para guardar una posición segura
+
+# Jefe
+NOMBRE_JEFE = "VOLTARÓN"
+VIDA_JEFE = 12
+VIDA_SEGUNDA_FASE = 6        # con esta vida o menos empieza la fase 2
+VELOCIDAD_JEFE = 2
+DURACION_AVISO = 45          # 0,75 s de señal antes de cada ataque (mínimo pedido: 0,6 s)
+DESCANSO_INICIAL = 120       # 2 s para ubicarse al entrar a la arena
+DESCANSO_FASE_1 = 90         # 1,5 s entre patrones
+DESCANSO_FASE_2 = 66         # 1,1 s entre patrones (sigue siendo más de 1 s)
+INTERVALO_RAFAGA = 24        # cuadros entre los 3 disparos de la ráfaga
+INTERVALO_BAJOS = 45         # cuadros entre los 3 proyectiles bajos (~225 px de separación)
+VELOCIDAD_PROYECTIL = 5
+MAX_PROYECTILES = 12
+
 # Estados posibles de la partida
 JUGANDO = "jugando"
 DERROTA = "derrota"
 VICTORIA = "victoria"
+
+# Escenas
+NIVEL = "nivel"
+ARENA = "arena"
+
+# Estados y patrones del jefe
+AVISO = "aviso"
+ATAQUE = "ataque"
+DESCANSO = "descanso"
+RAFAGA = "ráfaga"
+BAJOS = "proyectiles bajos"
 
 # Colores (R, G, B)
 COLOR_CIELO = (22, 26, 52)
@@ -63,6 +94,15 @@ COLOR_PULSO_CENTRO = (235, 255, 255)
 COLOR_LISTO = (90, 220, 120)
 COLOR_RECARGANDO = (130, 130, 150)
 COLOR_TEXTO = (255, 255, 255)
+COLOR_CORAZON = (235, 60, 80)
+COLOR_CORAZON_VACIO = (90, 90, 110)
+COLOR_ARENA = (34, 20, 44)
+COLOR_LUZ_ARENA = (52, 32, 66)
+COLOR_JEFE_FASE_1 = (110, 140, 200)
+COLOR_JEFE_FASE_2 = (220, 90, 50)
+COLOR_AVISO = (255, 220, 60)
+COLOR_PROYECTIL = (255, 120, 200)
+COLOR_PROYECTIL_BAJO = (255, 140, 40)
 
 # ---------------------------------------------------------------------------
 # Diseño del nivel
@@ -112,6 +152,10 @@ ZONAS_ENEMIGOS = [
 POSICION_INICIAL = (80, ALTURA_SUELO - 48)
 PORTAL = (2740, ALTURA_SUELO - 110, 70, 110)  # (x, y, ancho, alto)
 
+# Arena del jefe: ocupa exactamente la ventana (sin cámara)
+POSICION_INICIAL_ARENA = (80, ALTURA_SUELO - 48)  # extremo izquierdo
+ZONA_JEFE = (560, 920)  # el jefe se mueve entre estos dos límites (lado derecho)
+
 
 def crear_solidos():
     """Devuelve la lista de rectángulos sólidos: tramos de suelo y plataformas."""
@@ -121,6 +165,19 @@ def crear_solidos():
     for x, y, ancho in PLATAFORMAS:
         solidos.append(pygame.Rect(x, y, ancho, 20))
     return solidos
+
+
+def crear_solidos_arena():
+    """La arena solo tiene un suelo continuo de borde a borde."""
+    return [pygame.Rect(0, ALTURA_SUELO, ANCHO_VENTANA, ALTO_VENTANA - ALTURA_SUELO)]
+
+
+def dibujar_corazon(pantalla, x, y, lleno):
+    """Corazón hecho con dos círculos y un triángulo."""
+    color = COLOR_CORAZON if lleno else COLOR_CORAZON_VACIO
+    pygame.draw.circle(pantalla, color, (x + 7, y + 7), 7)
+    pygame.draw.circle(pantalla, color, (x + 19, y + 7), 7)
+    pygame.draw.polygon(pantalla, color, [(x, y + 9), (x + 26, y + 9), (x + 13, y + 24)])
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +193,7 @@ class Jugador:
         self.rect = pygame.Rect(x, y, self.ANCHO, self.ALTO)
         self.vel_y = 0
         self.en_suelo = False
+        self.apoyo = None  # sólido sobre el que está parado (None si está en el aire)
         self.mirando_derecha = True
 
     def saltar(self):
@@ -144,7 +202,7 @@ class Jugador:
             self.vel_y = VELOCIDAD_SALTO
             self.en_suelo = False
 
-    def actualizar(self, teclas, solidos):
+    def actualizar(self, teclas, solidos, ancho_mundo):
         # 1) Movimiento horizontal según las teclas presionadas
         dx = 0
         if teclas[pygame.K_a] or teclas[pygame.K_LEFT]:
@@ -163,21 +221,23 @@ class Jugador:
                 elif dx < 0:
                     self.rect.left = solido.right
 
-        # No puede salir por los extremos del nivel
+        # No puede salir por los extremos del nivel o de la arena
         self.rect.left = max(self.rect.left, 0)
-        self.rect.right = min(self.rect.right, ANCHO_NIVEL)
+        self.rect.right = min(self.rect.right, ancho_mundo)
 
         # 2) Gravedad y movimiento vertical
         self.vel_y = min(self.vel_y + GRAVEDAD, VELOCIDAD_CAIDA_MAX)
         self.rect.y += self.vel_y
 
         self.en_suelo = False
+        self.apoyo = None
         for solido in solidos:
             if self.rect.colliderect(solido):
                 if self.vel_y > 0:
                     # Venía cayendo: aterriza encima del sólido
                     self.rect.bottom = solido.top
                     self.en_suelo = True
+                    self.apoyo = solido
                 elif self.vel_y < 0:
                     # Venía subiendo: se golpea la cabeza por debajo
                     self.rect.top = solido.bottom
@@ -248,8 +308,9 @@ class Pulso:
     ANCHO = 18
     ALTO = 10
 
-    def __init__(self, jugador):
+    def __init__(self, jugador, ancho_mundo):
         self.direccion = 1 if jugador.mirando_derecha else -1
+        self.ancho_mundo = ancho_mundo  # ancho del nivel o de la arena
         self.rect = pygame.Rect(0, 0, self.ANCHO, self.ALTO)
         # Nace pegado al frente del robot, a la altura de su centro
         if self.direccion == 1:
@@ -267,7 +328,7 @@ class Pulso:
     def termino_alcance(self):
         """True si ya recorrió su distancia máxima o salió del escenario."""
         return (self.recorrido >= ALCANCE_PULSO
-                or self.rect.right < 0 or self.rect.left > ANCHO_NIVEL)
+                or self.rect.right < 0 or self.rect.left > self.ancho_mundo)
 
     def dibujar(self, pantalla, camara_x):
         rect = self.rect.move(-camara_x, 0)
@@ -293,28 +354,181 @@ class Bateria:
         pygame.draw.rect(pantalla, COLOR_TEXTO, (x + 4, y + 14, 12, 4))  # franja de carga
 
 
+class Proyectil:
+    """Proyectil del jefe. Viaja en línea recta: no persigue al jugador."""
+
+    def __init__(self, x, y, vel_x, vel_y, bajo):
+        # La posición se guarda con decimales para que las diagonales sean precisas
+        self.x = x
+        self.y = y
+        self.vel_x = vel_x
+        self.vel_y = vel_y
+        self.bajo = bajo  # True = proyectil que rueda por el suelo
+        self.rect = pygame.Rect(0, 0, 24, 18) if bajo else pygame.Rect(0, 0, 16, 16)
+        self.rect.center = (round(x), round(y))
+
+    def actualizar(self):
+        self.x += self.vel_x
+        self.y += self.vel_y
+        self.rect.center = (round(self.x), round(self.y))
+
+    def fuera_de_arena(self):
+        # El suelo también es un límite: un disparo que lo atraviesa ya salió
+        return (self.rect.right < 0 or self.rect.left > ANCHO_VENTANA
+                or self.rect.bottom < 0 or self.rect.top >= ALTURA_SUELO)
+
+    def dibujar(self, pantalla):
+        if self.bajo:
+            pygame.draw.ellipse(pantalla, COLOR_PROYECTIL_BAJO, self.rect)
+            pygame.draw.ellipse(pantalla, COLOR_AVISO, self.rect.inflate(-10, -8))
+        else:
+            pygame.draw.circle(pantalla, COLOR_PROYECTIL, self.rect.center, 8)
+            pygame.draw.circle(pantalla, COLOR_TEXTO, self.rect.center, 3)
+
+
+class Jefe:
+    """Robot jefe con tres estados (aviso, ataque y descanso) y dos patrones."""
+
+    ANCHO = 100
+    ALTO = 120
+
+    def __init__(self):
+        self.rect = pygame.Rect(0, 0, self.ANCHO, self.ALTO)
+        self.rect.bottomright = (ZONA_JEFE[1], ALTURA_SUELO)  # extremo derecho
+        self.vida = VIDA_JEFE
+        self.direccion = -1
+        self.mirando_derecha = False
+        self.estado = DESCANSO
+        self.temporizador = DESCANSO_INICIAL  # cuadros que faltan en el estado actual
+        self.patron = RAFAGA                  # patrón que usará en el próximo ataque
+        self.disparos_hechos = 0
+
+    def en_segunda_fase(self):
+        return self.vida <= VIDA_SEGUNDA_FASE
+
+    def actualizar(self, jugador, proyectiles):
+        # Siempre mira hacia el jugador
+        self.mirando_derecha = jugador.rect.centerx > self.rect.centerx
+        self.temporizador -= 1
+
+        if self.estado == DESCANSO:
+            self.mover()
+            if self.temporizador <= 0:
+                self.estado = AVISO
+                self.temporizador = DURACION_AVISO
+        elif self.estado == AVISO:
+            if self.temporizador <= 0:
+                self.estado = ATAQUE
+                self.disparos_hechos = 0
+        elif self.estado == ATAQUE and self.temporizador <= 0:
+            if self.disparos_hechos < 3:
+                self.disparar(jugador, proyectiles)
+                self.disparos_hechos += 1
+                self.temporizador = INTERVALO_RAFAGA if self.patron == RAFAGA else INTERVALO_BAJOS
+            else:
+                # Terminó el patrón: descansa y deja listo el otro patrón
+                self.estado = DESCANSO
+                self.temporizador = DESCANSO_FASE_2 if self.en_segunda_fase() else DESCANSO_FASE_1
+                self.patron = BAJOS if self.patron == RAFAGA else RAFAGA
+
+    def mover(self):
+        """Se desplaza de un lado a otro dentro de su zona."""
+        self.rect.x += VELOCIDAD_JEFE * self.direccion
+        if self.rect.left <= ZONA_JEFE[0]:
+            self.rect.left = ZONA_JEFE[0]
+            self.direccion = 1
+        elif self.rect.right >= ZONA_JEFE[1]:
+            self.rect.right = ZONA_JEFE[1]
+            self.direccion = -1
+
+    def punto_canon(self):
+        """El cañón está en el costado que mira al jugador."""
+        x = self.rect.right if self.mirando_derecha else self.rect.left
+        return x, self.rect.top + 70
+
+    def disparar(self, jugador, proyectiles):
+        if len(proyectiles) >= MAX_PROYECTILES:
+            return
+        x, y = self.punto_canon()
+        if self.patron == RAFAGA:
+            # Apunta a donde está el jugador en este momento; después sigue recto
+            dx = jugador.rect.centerx - x
+            dy = jugador.rect.centery - y
+            distancia = math.hypot(dx, dy) or 1
+            proyectiles.append(Proyectil(x, y, dx / distancia * VELOCIDAD_PROYECTIL,
+                                         dy / distancia * VELOCIDAD_PROYECTIL, False))
+        else:
+            # Proyectil bajo que rueda por el suelo hacia el lado del jugador
+            sentido = 1 if self.mirando_derecha else -1
+            proyectiles.append(Proyectil(x, ALTURA_SUELO - 9, sentido * VELOCIDAD_PROYECTIL, 0, True))
+
+    def dibujar(self, pantalla):
+        r = self.rect
+        color = COLOR_JEFE_FASE_2 if self.en_segunda_fase() else COLOR_JEFE_FASE_1
+        # Orugas
+        pygame.draw.rect(pantalla, COLOR_VISOR, (r.x + 4, r.bottom - 20, r.width - 8, 20), border_radius=8)
+        # Cuerpo y cabeza
+        pygame.draw.rect(pantalla, color, (r.x + 10, r.y + 40, r.width - 20, 62), border_radius=10)
+        pygame.draw.rect(pantalla, color, (r.x + 22, r.y, r.width - 44, 44), border_radius=8)
+        pygame.draw.rect(pantalla, COLOR_VISOR, (r.x + 28, r.y + 12, r.width - 56, 18), border_radius=5)
+        # Ojo: se pone amarillo durante el aviso
+        ojo = COLOR_AVISO if self.estado == AVISO else COLOR_OJO
+        ojo_x = r.centerx + (10 if self.mirando_derecha else -10)
+        pygame.draw.circle(pantalla, ojo, (ojo_x, r.y + 21), 7)
+        # Cañón
+        canon = pygame.Rect(0, 0, 26, 16)
+        canon.center = self.punto_canon()
+        pygame.draw.rect(pantalla, COLOR_VISOR, canon, border_radius=4)
+        if self.estado == AVISO:
+            self.dibujar_aviso(pantalla)
+
+    def dibujar_aviso(self, pantalla):
+        """Señal antes de atacar: triángulo con "!" y una pista del patrón."""
+        cx, arriba = self.rect.centerx, self.rect.top
+        pygame.draw.polygon(pantalla, COLOR_AVISO, [(cx, arriba - 62), (cx - 24, arriba - 18), (cx + 24, arriba - 18)])
+        pygame.draw.line(pantalla, COLOR_VISOR, (cx, arriba - 50), (cx, arriba - 32), 4)
+        pygame.draw.circle(pantalla, COLOR_VISOR, (cx, arriba - 25), 3)
+        if self.patron == RAFAGA:
+            # El cañón brilla: viene una ráfaga apuntada
+            pygame.draw.circle(pantalla, COLOR_AVISO, self.punto_canon(), 13, 3)
+        else:
+            # Franja en el suelo del lado del jugador: vienen proyectiles bajos
+            ancho = 140
+            x = self.rect.right if self.mirando_derecha else self.rect.left - ancho
+            pygame.draw.rect(pantalla, COLOR_AVISO, (x, ALTURA_SUELO - 6, ancho, 6))
+
+
 # ---------------------------------------------------------------------------
 # Lógica principal de la partida
 # ---------------------------------------------------------------------------
 class Juego:
     def __init__(self):
-        self.solidos = crear_solidos()
-        self.portal = pygame.Rect(PORTAL)
         self.fuente = pygame.font.Font(None, 36)          # fuente por defecto de Pygame
         self.fuente_grande = pygame.font.Font(None, 72)
         self.reiniciar()
 
     def reiniciar(self):
-        """Restaura jugador, enemigos, baterías, contador, pulsos, espera y cámara."""
+        """Reinicia toda la aventura: nivel, corazones, enemigos, jefe y temporizadores."""
+        self.escena = NIVEL
+        self.solidos = crear_solidos()
+        self.portal = pygame.Rect(PORTAL)
         self.jugador = Jugador(*POSICION_INICIAL)
+        self.posicion_segura = POSICION_INICIAL  # último lugar donde el robot estuvo apoyado
         self.enemigos = [Enemigo(*zona) for zona in ZONAS_ENEMIGOS]
         self.baterias = [Bateria(x, y) for x, y in BATERIAS]
         self.pulsos = []
         self.espera_pulso = 0  # cuadros que faltan para poder atacar de nuevo
+        self.vidas = VIDAS_MAXIMAS
+        self.invulnerable = 0  # cuadros que faltan de invulnerabilidad
+        self.jefe = None
+        self.proyectiles = []
         self.contador = 0
         self.estado = JUGANDO
         self.motivo_derrota = ""
         self.camara_x = 0
+
+    def ancho_mundo(self):
+        return ANCHO_NIVEL if self.escena == NIVEL else ANCHO_VENTANA
 
     def manejar_tecla(self, tecla):
         if self.estado == JUGANDO:
@@ -334,7 +548,7 @@ class Juego:
     def lanzar_pulso(self):
         # Funciona igual en el suelo o en el aire
         if self.puede_atacar():
-            self.pulsos.append(Pulso(self.jugador))
+            self.pulsos.append(Pulso(self.jugador, self.ancho_mundo()))
             self.espera_pulso = ESPERA_PULSO
 
     def actualizar_pulsos(self):
@@ -349,8 +563,27 @@ class Juego:
             if enemigo_golpeado:
                 self.enemigos.remove(enemigo_golpeado)
                 self.pulsos.remove(pulso)
+            elif self.jefe and pulso.rect.colliderect(self.jefe.rect):
+                # Cada impacto al jefe le quita un punto de vida
+                self.jefe.vida = max(0, self.jefe.vida - 1)
+                self.pulsos.remove(pulso)
             elif pulso.termino_alcance() or pulso.rect.collidelist(self.solidos) != -1:
                 self.pulsos.remove(pulso)
+
+    def recibir_danio(self):
+        """Resta un corazón, salvo durante la invulnerabilidad."""
+        if self.invulnerable > 0:
+            return
+        self.vidas -= 1
+        self.invulnerable = INVULNERABILIDAD
+
+    def caer_al_vacio(self):
+        # Cada caída cuesta un corazón y regresa al robot al último lugar seguro.
+        # Como vuelve arriba en el mismo cuadro, la misma caída no daña dos veces.
+        self.vidas -= 1
+        self.invulnerable = INVULNERABILIDAD
+        self.jugador.rect.topleft = self.posicion_segura
+        self.jugador.vel_y = 0
 
     def actualizar(self, teclas):
         # Si la partida terminó, no se mueve nada hasta reiniciar o salir
@@ -359,8 +592,16 @@ class Juego:
 
         if self.espera_pulso > 0:
             self.espera_pulso -= 1
+        if self.invulnerable > 0:
+            self.invulnerable -= 1
 
-        self.jugador.actualizar(teclas, self.solidos)
+        self.jugador.actualizar(teclas, self.solidos, self.ancho_mundo())
+        if self.escena == NIVEL:
+            self.actualizar_nivel()
+        else:
+            self.actualizar_arena()
+
+    def actualizar_nivel(self):
         for enemigo in self.enemigos:
             enemigo.actualizar()
         self.actualizar_pulsos()
@@ -370,17 +611,65 @@ class Juego:
                 bateria.recogida = True
                 self.contador += 1
 
-        # El ataque no da invulnerabilidad: tocar a cualquier enemigo es derrota
-        if self.jugador.rect.collidelist([e.rect for e in self.enemigos]) != -1:
-            self.estado = DERROTA
-            self.motivo_derrota = "Te atrapó un enemigo"
-        elif self.jugador.rect.top > ALTO_VENTANA:
-            self.estado = DERROTA
-            self.motivo_derrota = "Caíste al vacío"
-        elif self.jugador.rect.colliderect(self.portal):
-            self.estado = VICTORIA
+        # Solo se guarda como segura una posición con margen hacia ambos bordes,
+        # para no reaparecer al filo de un hueco y volver a caer
+        apoyo = self.jugador.apoyo
+        if (apoyo and self.jugador.rect.left - apoyo.left >= MARGEN_SEGURO
+                and apoyo.right - self.jugador.rect.right >= MARGEN_SEGURO):
+            self.posicion_segura = self.jugador.rect.topleft
 
-        self.actualizar_camara()
+        # Tocar a un enemigo resta un corazón (el ataque no da invulnerabilidad)
+        if self.jugador.rect.collidelist([e.rect for e in self.enemigos]) != -1:
+            self.recibir_danio()
+        if self.jugador.rect.top > ALTO_VENTANA:
+            self.caer_al_vacio()
+
+        if self.vidas <= 0:
+            self.estado = DERROTA
+            self.motivo_derrota = "Te quedaste sin corazones"
+        elif self.jugador.rect.colliderect(self.portal):
+            self.entrar_arena()
+        else:
+            self.actualizar_camara()
+
+    def entrar_arena(self):
+        """Pasa a la arena del jefe. Solo ocurre una vez: la arena no tiene portal."""
+        self.escena = ARENA
+        self.solidos = crear_solidos_arena()
+        self.enemigos = []
+        self.pulsos = []
+        self.proyectiles = []
+        self.espera_pulso = 0
+        self.vidas = VIDAS_MAXIMAS  # el combate empieza con los tres corazones
+        self.invulnerable = 0
+        self.jugador = Jugador(*POSICION_INICIAL_ARENA)
+        self.jefe = Jefe()
+        self.camara_x = 0  # la arena es fija, sin cámara
+
+    def actualizar_arena(self):
+        self.jefe.actualizar(self.jugador, self.proyectiles)
+        self.actualizar_pulsos()
+
+        for proyectil in self.proyectiles[:]:
+            proyectil.actualizar()
+            if proyectil.rect.colliderect(self.jugador.rect):
+                # Desaparece al impactar, así que solo puede causar daño una vez
+                self.proyectiles.remove(proyectil)
+                self.recibir_danio()
+            elif proyectil.fuera_de_arena():
+                self.proyectiles.remove(proyectil)
+
+        if self.jugador.rect.colliderect(self.jefe.rect):
+            self.recibir_danio()
+
+        # Si los dos llegan a cero en la misma actualización, gana el jugador
+        if self.jefe.vida <= 0:
+            self.estado = VICTORIA
+            self.proyectiles = []
+            self.pulsos = []
+        elif self.vidas <= 0:
+            self.estado = DERROTA
+            self.motivo_derrota = f"{NOMBRE_JEFE} te venció"
 
     def actualizar_camara(self):
         # Centra al jugador, pero sin mostrar nada fuera del nivel
@@ -389,23 +678,38 @@ class Juego:
 
     # ----- Dibujo -----------------------------------------------------------
     def dibujar(self, pantalla):
-        self.dibujar_fondo(pantalla)
-        self.dibujar_escenario(pantalla)
-        self.dibujar_portal(pantalla)
-        for bateria in self.baterias:
-            bateria.dibujar(pantalla, self.camara_x)
-        for enemigo in self.enemigos:
-            enemigo.dibujar(pantalla, self.camara_x)
-        self.jugador.dibujar(pantalla, self.camara_x)
+        if self.escena == NIVEL:
+            self.dibujar_fondo(pantalla)
+            self.dibujar_escenario(pantalla)
+            self.dibujar_portal(pantalla)
+            for bateria in self.baterias:
+                bateria.dibujar(pantalla, self.camara_x)
+            for enemigo in self.enemigos:
+                enemigo.dibujar(pantalla, self.camara_x)
+        else:
+            self.dibujar_fondo_arena(pantalla)
+            self.dibujar_escenario(pantalla)
+            self.jefe.dibujar(pantalla)
+            for proyectil in self.proyectiles:
+                proyectil.dibujar(pantalla)
+
+        if self.jugador_visible():
+            self.jugador.dibujar(pantalla, self.camara_x)
         for pulso in self.pulsos:
             pulso.dibujar(pantalla, self.camara_x)
         self.dibujar_hud(pantalla)
 
         if self.estado == VICTORIA:
-            self.dibujar_mensaje(pantalla, "¡Llegaste al portal!",
+            self.dibujar_mensaje(pantalla, f"¡Derrotaste a {NOMBRE_JEFE}!",
                                  f"Baterías recogidas: {self.contador} de {len(self.baterias)}")
         elif self.estado == DERROTA:
             self.dibujar_mensaje(pantalla, "Fin de la partida", self.motivo_derrota)
+
+    def jugador_visible(self):
+        # Durante la invulnerabilidad parpadea: se oculta 6 cuadros, se muestra 6
+        if self.estado != JUGANDO or self.invulnerable == 0:
+            return True
+        return (self.invulnerable // 6) % 2 == 0
 
     def dibujar_fondo(self, pantalla):
         pantalla.fill(COLOR_CIELO)
@@ -418,6 +722,12 @@ class Juego:
             x = i * 150 - self.camara_x // 2
             alto = alturas[i % len(alturas)]
             pygame.draw.rect(pantalla, COLOR_TORRE, (x, ALTURA_SUELO - alto, 90, alto))
+
+    def dibujar_fondo_arena(self, pantalla):
+        pantalla.fill(COLOR_ARENA)
+        # Focos de luz decorativos
+        for x in (160, 480, 800):
+            pygame.draw.circle(pantalla, COLOR_LUZ_ARENA, (x, 260), 120)
 
     def dibujar_escenario(self, pantalla):
         for solido in self.solidos:
@@ -438,6 +748,10 @@ class Juego:
         texto = self.fuente.render(f"Baterías: {self.contador} / {len(self.baterias)}", True, COLOR_TEXTO)
         pantalla.blit(texto, (20, 20))
 
+        # Corazones: uno lleno por cada punto de vida
+        for i in range(VIDAS_MAXIMAS):
+            dibujar_corazon(pantalla, 20 + i * 34, 56, i < self.vidas)
+
         # Indicador del ataque: verde si está listo, gris mientras recarga
         if self.puede_atacar():
             color, estado = COLOR_LISTO, "listo"
@@ -451,6 +765,20 @@ class Juego:
         barra.topright = (ANCHO_VENTANA - 20, 50)
         pygame.draw.rect(pantalla, COLOR_RECARGANDO, barra, 1)
         pygame.draw.rect(pantalla, color, (barra.x, barra.y, int(barra.width * progreso), barra.height))
+
+        if self.jefe:
+            self.dibujar_barra_jefe(pantalla)
+
+    def dibujar_barra_jefe(self, pantalla):
+        fase = " · FASE 2" if self.jefe.en_segunda_fase() else ""
+        texto = self.fuente.render(f"{NOMBRE_JEFE}  {self.jefe.vida}/{VIDA_JEFE}{fase}", True, COLOR_TEXTO)
+        pantalla.blit(texto, texto.get_rect(midtop=(ANCHO_VENTANA // 2, 14)))
+        color = COLOR_JEFE_FASE_2 if self.jefe.en_segunda_fase() else COLOR_JEFE_FASE_1
+        barra = pygame.Rect(0, 0, 360, 14)
+        barra.midtop = (ANCHO_VENTANA // 2, 44)
+        pygame.draw.rect(pantalla, COLOR_CORAZON_VACIO, barra)
+        pygame.draw.rect(pantalla, color, (barra.x, barra.y, barra.width * self.jefe.vida // VIDA_JEFE, barra.height))
+        pygame.draw.rect(pantalla, COLOR_TEXTO, barra, 2)
 
     def dibujar_mensaje(self, pantalla, titulo, detalle):
         # Capa semitransparente sobre el juego

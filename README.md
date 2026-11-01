@@ -2,7 +2,7 @@
 
 Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
 
-Un robot debe recoger baterías, esquivar o eliminar a tres enemigos con un pulso de energía y no caer en los huecos para llegar al portal de salida.
+Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones.
 
 ## Cómo ejecutarlo
 
@@ -183,7 +183,94 @@ Realiza únicamente esta segunda iteración y espera nuevas instrucciones antes 
 | Baterías | fáciles de alcanzar | una exige saltar encima de la plataforma 2, otra está junto a un enemigo y dos están sobre los huecos |
 | Ataque | — | pulso con J: espera de 0,6 s, máximo 2 activos, alcance de 350 px |
 
-### Prompt 3: _pendiente_
+### Prompt 3: arena y batalla contra un jefe
+
+**Qué se pidió a la IA:**
+- Un sistema de **tres corazones** con 1,2 s de invulnerabilidad y parpadeo. Las caídas restan un corazón y devuelven al robot a un lugar seguro.
+- Que el portal lleve a una **arena** donde hay que vencer a un **jefe original con 12 de vida**. El jefe se mueve, avisa antes de atacar, alterna dos patrones (ráfaga apuntada y proyectiles bajos) y tiene una segunda fase.
+
+**Por qué se refinó el prompt así:**
+- Se dijo de forma explícita que **dos reglas anteriores se reemplazan** (tocar un enemigo ya no es derrota inmediata y el portal ya no es victoria). Así la IA no queda con instrucciones contradictorias de los prompts anteriores.
+- Los **estados del jefe** (aviso, ataque y descanso), los tiempos mínimos (aviso de 0,6 s y descanso de 1 s) y el orden fijo de los patrones hacen que el combate sea difícil pero predecible y justo.
+- Se pidieron reglas para casos límite: que un proyectil dañe una sola vez, un máximo de 12 proyectiles, prioridad de la victoria si ambos llegan a 0 a la vez, y un reinicio completo. Son los errores típicos de un combate con jefe.
+- Se pidió inspirarse en los **patrones** de Cuphead, pero con diseño y recursos originales.
+
+<details>
+<summary>Texto completo del prompt 3</summary>
+
+```
+ROL
+Continúa como desarrollador de videojuegos en Python y tutor del proyecto RoboAventura.
+CONTEXTO
+El juego ya tiene plataformas, enemigos y un ataque de energía. Quiero agregar una batalla contra un jefe inspirada en los patrones de ataque de Cuphead, con diseño y recursos originales.
+Esta iteración reemplaza dos reglas anteriores: tocar un enemigo ya no provoca derrota inmediata y llegar al portal ya no significa ganar.
+OBJETIVO
+Al atravesar el portal, lleva al jugador a una arena donde deba vencer a un jefe que se mueva, alterne ataques y tenga una barra de vida. El personaje debe soportar tres impactos antes de perder.
+VIDAS DEL PERSONAJE
+* Representa la salud mediante tres corazones visibles. Cada corazón equivale a un punto de vida.
+* Tocar un enemigo, al jefe o uno de sus proyectiles resta un corazón.
+* Después de recibir daño, concede 1,2 segundos de invulnerabilidad y haz parpadear al personaje.
+* Durante ese intervalo, ningún contacto adicional debe quitar vida.
+* Caer en un hueco resta un corazón y devuelve al personaje a una posición segura, sin provocar daños repetidos por la misma caída.
+* Al llegar a cero corazones, muestra la derrota.
+* Al entrar por primera vez a la arena, recupera los tres corazones para comenzar el combate en condiciones justas.
+TRANSICIÓN POR EL PORTAL
+* Conserva el nivel de plataformas existente.
+* Al tocar el portal, cambia a una arena fija del tamaño de la ventana, sin desplazamiento de cámara.
+* Limpia los enemigos y proyectiles del escenario anterior.
+* Coloca al jugador y al jefe en extremos separados.
+* La arena debe tener suelo continuo, límites laterales y espacio suficiente para esquivar.
+* El portal no debe permitir regresar ni recuperar vida repetidamente.
+* La victoria se obtiene únicamente al derrotar al jefe.
+COMPORTAMIENTO DEL JEFE
+* Crea un robot jefe original con doce puntos de vida.
+* Muestra una barra de vida con su nombre y el valor actual sobre el máximo.
+* Cada pulso del jugador que impacte al jefe resta un punto y desaparece.
+* El jefe debe desplazarse horizontalmente dentro de una zona delimitada.
+* Organiza su comportamiento mediante estados claros: aviso, ataque y descanso.
+* Antes de cada ataque, muestra una señal visual durante al menos 0,6 segundos.
+* Alterna estos patrones en un orden predecible:
+   1. Ráfaga: dispara tres proyectiles consecutivos hacia la posición que tenía el jugador al iniciar cada disparo. Los proyectiles no persiguen al jugador.
+   2. Salto de proyectiles: lanza una secuencia de tres proyectiles bajos, separados lo suficiente para que el jugador pueda saltarlos.
+* Incluye al menos un segundo de descanso entre patrones para permitir contraatacar.
+* Al quedar con seis puntos de vida o menos, activa una segunda fase: cambia su color y reduce moderadamente el descanso, sin eliminar los avisos ni volver inevitables los ataques.
+* Ajusta posiciones y distancias para que el ataque actual del jugador pueda alcanzar al jefe.
+REGLAS DEL COMBATE
+* Conserva J para atacar, el tiempo de espera de 0,6 segundos, el alcance de 350 píxeles y el máximo de dos pulsos activos.
+* Los proyectiles del jefe desaparecen al impactar al jugador o salir de la arena.
+* Un proyectil solo puede causar daño una vez.
+* Limita a doce los proyectiles enemigos activos.
+* Al morir el jefe, elimina sus proyectiles, detén el daño y muestra la victoria.
+* Si jugador y jefe llegan a cero vida en la misma actualización, da prioridad a la victoria.
+* R después de ganar o perder debe reiniciar toda la aventura, restaurando corazones, enemigos, jefe, temporizadores y proyectiles.
+LÍMITES
+* Agrega únicamente una arena y un jefe con dos patrones y dos fases.
+* No incorpores armas nuevas, inventario, mejoras, niveles adicionales ni multijugador.
+* Mantén Python y Pygame, sin nuevas dependencias ni recursos externos.
+* Dibuja personajes, efectos y barras con figuras geométricas.
+* Conserva los controles actuales y evita cambios ajenos a esta iteración.
+* No copies personajes, música ni imágenes de Cuphead.
+FORMATO DE RESPUESTA
+1. Resume las reglas que cambian.
+2. Entrega los archivos modificados completos.
+3. Explica el sistema de corazones, la invulnerabilidad, los estados del jefe y sus patrones.
+4. Incluye pruebas manuales de daño, caída, transición, ataques, segunda fase, victoria, derrota y reinicio.
+5. Distingue las pruebas realizadas de las pendientes e identifica las limitaciones conocidas.
+Implementa únicamente esta iteración y espera nuevas instrucciones antes de ampliar el juego.
+```
+
+</details>
+
+**Reglas que cambian respecto a la versión 2:**
+
+| Regla | Versión 2 | Versión 3 |
+|---|---|---|
+| Tocar un enemigo | Derrota inmediata | Resta 1 corazón y da 1,2 s de invulnerabilidad |
+| Caer en un hueco | Derrota inmediata | Resta 1 corazón y regresa al último lugar seguro |
+| Derrota | Un solo error | Quedarse sin los 3 corazones |
+| Portal | Victoria | Lleva a la arena del jefe (una sola vez) y recupera los 3 corazones |
+| Victoria | Llegar al portal | Vencer a VOLTARÓN (12 de vida) |
+| R | Reinicia el nivel | Reinicia toda la aventura (nivel, corazones, enemigos, jefe, tiempos y proyectiles) |
 
 ---
 
@@ -197,13 +284,53 @@ Realiza únicamente esta segunda iteración y espera nuevas instrucciones antes 
 - **Dirección del pulso:** al presionar J, el pulso toma `mirando_derecha` del robot (1 = derecha, −1 = izquierda). Nace pegado al frente del robot, a la altura de su centro, y avanza 8 px por cuadro en esa dirección. Funciona igual en el suelo y en el aire.
 - **Tiempo de espera:** al lanzar, `espera_pulso` vale 36 cuadros (0,6 s × 60 FPS) y baja 1 por cuadro. Solo se puede atacar si la espera está en 0, hay menos de 2 pulsos activos y la partida sigue en curso.
 - **Alcance:** cada pulso suma en `recorrido` lo que avanza. El último paso se recorta para no pasar de 350 px, y al llegar ahí se elimina.
-- **Colisiones del pulso:** cada cuadro se revisa si toca a un enemigo; si toca a uno, se eliminan ese enemigo y el pulso (`break`, así que solo uno). Si no, se elimina cuando llega a su alcance, choca con un sólido (`collidelist`) o sale del escenario.
+- **Colisiones del pulso:** cada cuadro se revisa si toca a un enemigo; si toca a uno, se eliminan ese enemigo y el pulso (`break`, así que solo uno). Si no, se elimina cuando llega a su alcance, choca con un sólido (`collidelist`) o sale del escenario. En la arena también se revisa si toca al jefe: le quita 1 de vida y el pulso desaparece.
+
+### Versión 3: corazones y jefe
+
+- **Corazones:** `vidas` empieza en 3 y el HUD dibuja un corazón lleno por cada punto (dos círculos y un triángulo). Todo el daño pasa por `recibir_danio()`, que no hace nada si `invulnerable > 0`. Si no, resta 1 y pone `invulnerable = 72` (1,2 s).
+- **Parpadeo:** mientras `invulnerable > 0`, el robot se dibuja 6 cuadros sí y 6 no (`(invulnerable // 6) % 2`).
+- **Caídas:** `caer_al_vacio()` resta un corazón y devuelve al robot a `posicion_segura`. Esa posición solo se guarda cuando el robot está apoyado con al menos 100 px de suelo a cada lado (`MARGEN_SEGURO`). Como vuelve arriba en el mismo cuadro, una caída daña una sola vez.
+- **Portal:** `entrar_arena()` cambia la escena a `arena`. Pone un suelo continuo de 960 px, borra enemigos, pulsos y proyectiles, recupera los 3 corazones, coloca al robot a la izquierda y al jefe a la derecha, y deja la cámara en 0. La arena no tiene portal, así que no se puede volver ni recuperar vida otra vez.
+- **Estados del jefe:** un temporizador cuenta los cuadros que faltan en el estado actual.
+  - **Descanso** (2 s al entrar; luego 1,5 s, y 1,1 s en la fase 2): se mueve de lado a lado entre x=560 y x=920.
+  - **Aviso** (0,75 s): se queda quieto, su ojo se pone amarillo y aparece un triángulo con "!". Para la ráfaga, además, brilla el cañón; para los proyectiles bajos, aparece una franja amarilla en el suelo.
+  - **Ataque:** dispara 3 veces y vuelve a descanso, cambiando al otro patrón.
+- **Ráfaga:** 3 disparos cada 24 cuadros. Cada disparo calcula la dirección hacia el centro del jugador en ese momento (`dx / distancia`, `dy / distancia`). Después la velocidad no cambia, así que no persigue.
+- **Proyectiles bajos:** 3 proyectiles que ruedan por el suelo hacia el lado del jugador, uno cada 45 cuadros, con ~225 px de separación para saltarlos de a uno.
+- **Fase 2:** con 6 de vida o menos, el jefe se vuelve naranja, la barra dice "FASE 2" y el descanso baja de 1,5 s a 1,1 s. Los avisos duran lo mismo.
+- **Fin del combate:** si el jefe llega a 0 se revisa primero que el jugador (prioridad a la victoria). Al ganar se borran todos los proyectiles y ya no se procesa daño.
 
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 3: 53 de 53 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8.
+
+| Regla | Resultado |
+|---|---|
+| Empieza con 3 corazones; tocar un enemigo resta 1 y no termina la partida | ✅ |
+| Durante 1,2 s (72 cuadros) el contacto no quita más vida; después vuelve a dañar | ✅ |
+| El robot parpadea mientras es invulnerable | ✅ |
+| Con 0 corazones aparece la derrota | ✅ |
+| Caer al hueco resta 1 corazón y regresa a un lugar a 100 px o más del borde; la misma caída no daña dos veces | ✅ |
+| El portal lleva a la arena (no es victoria), recupera los 3 corazones y limpia enemigos, pulsos y proyectiles | ✅ |
+| Arena fija (cámara en 0), suelo continuo, límites izquierdo y derecho; no se recupera vida otra vez | ✅ |
+| El jefe tiene 12 de vida; cada pulso le resta 1 y desaparece | ✅ |
+| El jefe se desplaza y nunca sale de su zona (6000 cuadros) | ✅ |
+| Patrones en orden ráfaga → bajos → ráfaga → bajos; cada ataque va precedido de un aviso de 45 cuadros (≥ 36) | ✅ |
+| Descanso de 90 cuadros en la fase 1 y de 66 en la fase 2 (≥ 60) | ✅ |
+| Ráfaga: cada disparo va hacia donde estaba el jugador en ese momento, con velocidad constante | ✅ |
+| Proyectiles bajos: 3, por el suelo, separados 225 px; un jugador que salta cada uno no recibe daño | ✅ |
+| Fase 2 con 6 de vida: cambia de color y descansa menos | ✅ |
+| Un proyectil que impacta resta 1 y desaparece; los que salen de la arena también desaparecen; nunca hay más de 12 | ✅ |
+| Al morir el jefe: victoria, sin proyectiles, sin daño ni ataques; si ambos llegan a 0 a la vez, gana el jugador | ✅ |
+| R tras ganar y tras perder reinicia toda la aventura | ✅ |
+| Las 11 superficies del nivel siguen siendo alcanzables | ✅ |
+| Un jugador automático completa el nivel y vence al jefe (18 s en total, sin perder corazones en la arena) | ✅ |
+| Quedarse quieto en la arena sin esquivar lleva a la derrota en ~10 s (los ataques sí son peligrosos) | ✅ |
 
 **Versión 2: 33 de 33 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Además de repetir las pruebas de la versión 1:
 
@@ -248,6 +375,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 2. **El pulso pasaba 2 px de su alcance:** avanzaba de 8 en 8 y 350 no es múltiplo de 8, así que llegaba a 352 px. Lo detectó una prueba automática. **Ajuste:** el último paso se recorta a lo que falta.
 3. **La regla de "máximo 2 pulsos" no tenía efecto:** con velocidad 10, el pulso desaparecía en 35 cuadros, antes de que terminara la espera de 36. **Ajuste:** se bajó la velocidad a 8 (el pulso dura unos 44 cuadros).
 4. **El indicador decía "listo" después de perder,** aunque el ataque estaba bloqueado. Se vio en una captura. **Ajuste:** `puede_atacar()` también revisa que la partida siga en curso.
+5. **(Versión 3) Reaparecer al filo del hueco:** al principio, la posición segura era el último lugar donde el robot estuvo apoyado, que muchas veces es el borde del hueco. Una prueba mostró que, con la tecla todavía presionada, el robot volvía a caer enseguida y perdía otro corazón. **Ajuste:** solo se guarda una posición con al menos 100 px de suelo a cada lado (`MARGEN_SEGURO`). Para eso el jugador ahora recuerda sobre qué sólido está parado (`apoyo`).
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -275,6 +403,23 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 19. Presionar R después de perder y después de ganar: vuelven los 3 enemigos, no queda ningún pulso y el indicador dice "listo".
 20. Completar el nivel dos veces: una eliminando a los enemigos y otra esquivándolos con saltos o pasando por las plataformas.
 
+**Corazones, arena y jefe (versión 3):**
+
+21. Tocar un enemigo: se pierde 1 corazón, el robot parpadea y la partida sigue.
+22. Mientras parpadea, quedarse encima del enemigo: no se pierde otro corazón hasta que deja de parpadear.
+23. Caer en un hueco: se pierde 1 corazón y el robot reaparece lejos del borde, sin perder otro por la misma caída.
+24. Perder los 3 corazones en el nivel: aparece "Te quedaste sin corazones".
+25. Llegar al portal con 1 o 2 corazones: aparece la arena, sin cámara, con los 3 corazones llenos, el robot a la izquierda y VOLTARÓN a la derecha.
+26. Caminar hasta los dos bordes de la arena: el robot no sale de la pantalla.
+27. Observar al jefe: se mueve en el descanso, se detiene y muestra el "!" antes de cada ataque, y alterna ráfaga y proyectiles bajos.
+28. Ráfaga: moverse o saltar entre disparos; cada disparo va hacia donde estabas, no te sigue.
+29. Proyectiles bajos: saltarlos de a uno.
+30. Disparar al jefe: la barra baja de a 1 (12/12 → 11/12…).
+31. Bajar al jefe a 6: se pone naranja, aparece "FASE 2" y descansa menos, pero sigue avisando.
+32. Vencer al jefe: desaparecen sus proyectiles y aparece "¡Derrotaste a VOLTARÓN!".
+33. Perder en la arena: aparece "VOLTARÓN te venció".
+34. Presionar R después de ganar y después de perder: vuelve al inicio del nivel con 3 corazones, 3 enemigos, sin baterías y con el ataque listo.
+
 ### Limitaciones conocidas
 
 - Las pruebas automáticas no reemplazan jugarlo: falta probarlo con ventana real y teclado.
@@ -283,7 +428,11 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - Desde el suelo no se puede dar al enemigo de la plataforma 5, porque el pulso pasa por debajo. Hay que subir a la plataforma. Es una decisión de diseño: ese enemigo y su batería son opcionales.
 - El enemigo de la plataforma 5 empieza en el borde izquierdo. Si el robot sube justo ahí al comenzar, puede chocar con él. Conviene mirar antes de subir.
 - `requirements.txt` sigue pidiendo `pygame`. En Python 3.14 hay que instalar `pygame-ce` a mano (ver nota en "Cómo ejecutarlo").
-- **Pendiente:** jugar la versión 2 con ventana y teclado real (pruebas manuales 10 a 20).
+- **(Versión 3)** Las caídas siempre restan un corazón, incluso durante la invulnerabilidad. Si no, se podría caer gratis mientras el robot parpadea. Es una decisión de diseño.
+- **(Versión 3)** El jefe muere rápido: un jugador perfecto que dispara cada 0,6 s le gana en unos 8 segundos (12 impactos). Para una pelea más larga habría que subir su vida o dejarlo invulnerable durante el aviso, lo que cambiaría las reglas pedidas.
+- **(Versión 3)** Tocar un enemigo no empuja al robot hacia atrás. Si se queda encima del enemigo después de parpadear, pierde otro corazón.
+- **(Versión 3)** Detrás del jefe hay un espacio de 40 px cuando está en su extremo derecho. Si el robot salta por encima y se queda ahí, el jefe se da vuelta y le dispara hacia ese lado.
+- **Pendiente:** jugar las versiones 2 y 3 con ventana y teclado real (pruebas manuales 10 a 34).
 
 ## Reflexión final
 
