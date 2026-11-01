@@ -1,8 +1,8 @@
-# RoboAventura: NEXO-7
+# NEXO-7: Arena Eclipse
 
-Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
+Juego de combates contra jefes en 2D, hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos. Empezó como el plataformas "RoboAventura" (prompts 1 a 6) y en el prompt 7 se transformó en este juego.
 
-**NEXO-7**, un robot explorador, recorre una **estación tecnológica abandonada** recogiendo baterías y enfrentando drones de seguridad. Al final, una compuerta lo lleva a la cámara del núcleo de energía, donde lo espera el **Centinela Eclipse**, el sistema de defensa de la estación, con dos fases. NEXO-7 tiene tres corazones; apunta y dispara con el ratón, se agacha para esquivar y tiene un propulsor breve.
+**NEXO-7**, un robot explorador, enfrenta a los tres sistemas de defensa de una estación abandonada, en orden de dificultad: el **Centinela Eclipse**, el **Embestidor Férreo** y el **Serafín Voltaico**. Vencer a cada uno desbloquea al siguiente. NEXO-7 tiene cuatro corazones, apunta y dispara con el ratón, se agacha para esquivar y tiene un propulsor breve.
 
 ## Instalación y ejecución
 
@@ -29,117 +29,123 @@ python main.py
 | A / D o flechas ← → | Moverse |
 | Espacio | Saltar |
 | S o flecha abajo (en el suelo) | Agacharse (mitad de altura, más lento) |
-| Shift (en el aire) | Propulsor: hasta 0,8 s de uso; se recarga en 1,5 s apoyado |
+| Shift (en el aire) | Propulsor: hasta 0,8 s de uso; se recarga en 1,5 s apoyado en el suelo o una plataforma |
 | Ratón | Apuntar: ±60° en el suelo, 360° en el aire |
-| Clic izquierdo (se puede mantener) | Disparar pulsos (uno cada 0,3 s, máximo 2 en pantalla) |
-| Clic izquierdo en los menús | Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
+| Clic izquierdo (se puede mantener) | Disparar pulsos (uno cada 0,3 s, alcance 350 px, máximo 2 en pantalla) |
+| Clic izquierdo en los menús | Botones; un clic en un botón nunca dispara |
 
-R, Escape y J ya no se usan. La ventana también se puede cerrar con su botón de cierre.
+## Progresión
+
+1. **Menú principal:** Jugar o Salir.
+2. **Selección de jefe:** se ven los tres jefes, con su dificultad y su estado:
+   - **Bloqueado** (gris, con candado): se ve, pero no se puede elegir;
+   - **Disponible**;
+   - **Derrotado (n)**, con la cantidad de victorias.
+3. **Detalle:** características del jefe (fases, vida y patrones) y el botón **Combatir**.
+4. **Combate:** 4 corazones y energía llena. Cada impacto resta un corazón, con 1,2 s de invulnerabilidad. El botón **Pausa** ofrece Continuar, Reintentar, Selección de jefe y Salir.
+5. **Final del combate:**
+   - **Victoria:** "Siguiente jefe" (va al detalle del jefe recién desbloqueado) o "Selección de jefe".
+   - **Derrota:** "Reintentar" o "Selección de jefe". **Perder no quita desbloqueos.**
+   - Vencer al tercer jefe muestra la pantalla **¡Campaña completada!**.
+
+Al principio solo está disponible el Jefe 1. Vencerlo desbloquea al 2, y vencer al 2 desbloquea al 3. Cualquier jefe desbloqueado se puede volver a combatir.
+
+### Guardado local
+
+El progreso se guarda en `progreso.json`, junto a `main.py`. El archivo no se sube al repositorio (está en `.gitignore`). Solo guarda esto:
+
+```json
+{"desbloqueados": 2, "victorias": [1, 0, 0]}
+```
+
+- **Si no existe:** empieza una progresión nueva (solo el Jefe 1).
+- **Si está dañado** (no es JSON, faltan datos o los valores no tienen sentido): el juego no se cierra. Restablece el progreso y avisa en el menú: "El archivo de progreso estaba dañado: se restableció el progreso."
+- **Al escribir:** primero escribe un archivo temporal y después reemplaza el real, para que un cierre a la mitad no lo dañe.
+- **Para empezar de cero,** se borra `progreso.json`.
+
+## Los tres jefes
+
+| | Centinela Eclipse | Embestidor Férreo | Serafín Voltaico |
+|---|---|---|---|
+| Dificultad | Inicial | Intermedia | Avanzada |
+| Vida (fase 1 + fase 2) | 24 + 32 | 36 + 48 | 48 + 64 |
+| Movimiento | En el suelo, patrulla lenta (1,5 px/paso) | En el suelo, rápido (3 px/paso) y embestidas (8 y 9,5) | Vuela entre 3 posiciones altas y 2 bajas |
+| Patrones de la fase 1 | Proyectiles bajos · ráfaga dirigida | Embestida anunciada · abanico dirigido de 5 | Abanico descendente de 5 · descarga aérea dirigida |
+| Patrones de la fase 2 | Bajos más seguidos · ráfaga doble (6 disparos) | Embestida + aviso + ráfaga · doble abanico | Abanico + ráfaga · lluvia doble |
+| Aviso / descanso | 0,8 s / 1,4 s | 0,67 s / 1 s | 0,6 s y 0,5 s / 0,8 s (abajo, ventana de ataque) |
+| Qué enseña | Leer avisos y esquivar | Saltar, agacharse y moverse | Apuntar en varias direcciones y usar el propulsor |
+
+Reglas comunes:
+- Cada jefe tiene dos fases. Agotar la primera barra inicia una **transición única de 1,5 s**: se borran los proyectiles hostiles, nadie recibe daño y aparece "Fase 2: …" con el nombre de la nueva fase.
+- La segunda barra se carga **una sola vez**, y agotarla da la victoria.
+- Los disparos dirigidos no persiguen a NEXO-7.
+- Nunca hay más de 12 proyectiles hostiles: si no hay lugar, la emisión espera.
 
 ## Estructura del proyecto
 
 ```
-main.py               Punto de entrada: solo llama a game.ejecutar()
-config.py             Parámetros ajustables: dimensiones, controles, física, vidas, ataque y jefe
-game.py               Clase Juego (estados, escenas, actualización y dibujo) y bucle principal de paso fijo
+main.py                 Punto de entrada: solo llama a game.ejecutar()
+config.py               Dimensiones, controles, física, robot, reglas comunes de los jefes y nombres de pantallas
+game.py                 Clase Juego (pantallas, combate, victoria y derrota) y bucle principal de paso fijo
 entities/
-  robot.py            NEXO-7: salud, invulnerabilidad, postura, propulsor, apuntado y disparo
-  enemies.py          Enemigos comunes (EnemigoPatrulla)
-  boss.py             Centinela Eclipse: vida, movimiento, fases y patrones
-  projectiles.py      Proyectil: movimiento, alcance, daño y cuándo desaparece (aliado u hostil)
+  robot.py              NEXO-7: salud, invulnerabilidad, postura, propulsor, apuntado y disparo
+  projectiles.py        Proyectil: movimiento, alcance, daño y cuándo desaparece (aliado u hostil)
+  bosses/
+    __init__.py         Lista JEFES en el orden de la campaña
+    base.py             JefeBase: dos fases, transición, estados aviso/ataque/descanso, límite de 12, utilidades
+    centinela.py        Jefe 1 (sus parámetros están al principio del archivo)
+    embestidor.py       Jefe 2
+    serafin.py          Jefe 3
 systems/
-  movement.py         Desplazamiento horizontal, gravedad, salto y propulsión
-  collisions.py       Resolución de choques horizontales y verticales, límites y espacio libre
+  movement.py           Desplazamiento horizontal, gravedad, salto y propulsión
+  collisions.py         Choques horizontales y verticales, límites y espacio libre
+  progress.py           Progreso en JSON: carga, validación, restablecimiento y guardado seguro
 world/
-  level.py            Suelo, plataformas, baterías, zonas de enemigos, portal y arena
-  theme.py            Ambientación: colores, fuentes, fondos, suelo, plataformas y compuerta
+  arena.py              Suelo continuo, plataformas de cada jefe y posición inicial de NEXO-7
+  theme.py              Colores, fuentes y fondos de las tres arenas (núcleo, hangar y cúpula)
 ui/
-  menus.py            Botones y pantallas de inicio, pausa, victoria y derrota
-  hud.py              Corazones, baterías, energía, ataque, fase y vida del jefe, y mira
-requirements.txt
-README.md
+  menus.py              Botones, tarjetas de jefe y pantallas de menú, selección, detalle y mensajes
+  hud.py                Corazones, energía, ataque, nombre, fase y vida del jefe, y mira
 ```
 
-**Dependencias, sin ciclos:** `config` y `world/theme` no importan nada del juego. `systems/` usa solo `config`. `entities/` usa `config`, `systems` y `theme`. `world/level` crea enemigos. `ui/` usa `config` y `theme`. `game.py` reúne todo, y `main.py` solo importa `game`.
-
-**Recursos que se crean una sola vez** (en `Juego.__init__`): las fuentes, la capa oscura de los menús, los botones y los fondos de la estación y de la arena, que se dibujan una vez sobre una superficie y después solo se copian en cada cuadro.
-
-**NPCs:** el juego no tiene personajes no jugables. Si se agregan más adelante, su comportamiento iría en `entities/npcs.py` (con `actualizar()` y `dibujar()` como los enemigos), su ubicación en `world/level.py` y sus diálogos en `ui/`.
+- **Retirados del flujo** (siguen en el historial de git): `world/level.py` (nivel, baterías y portal), `entities/enemies.py` (enemigos comunes) y `entities/boss.py` (el jefe único de la versión 6).
+- **Dependencias sin ciclos:** `config` y `theme` no importan nada del juego, y solo `game.py` reúne todo.
+- **Recursos que se crean una sola vez:** fuentes, capa oscura, botones y los tres fondos.
+- **NPCs:** no hay. Irían en `entities/npcs.py`.
 
 ## Modelo de funcionamiento
 
-**Estados del juego** (`Juego.estado`):
-
 ```
-INICIO --Iniciar--> JUGANDO <--Pausa/Continuar--> PAUSA
-                       |                            |
-                       |                       Reiniciar --> JUGANDO (aventura nueva)
-                       +--> VICTORIA / DERROTA --Volver a jugar--> JUGANDO (aventura nueva)
-Salir (en cualquier menú) cierra el juego.
+MENÚ --Jugar--> SELECCIÓN --jefe disponible--> DETALLE --Combatir--> JUGANDO <--Pausa/Continuar--> PAUSA
+                  ^   |                          |                     |                            |
+                  |   +--Volver--> MENÚ          +--Volver--> SELECCIÓN  |              Reintentar / Selección / Salir
+                  |                                                    |
+                  +----Selección de jefe----- VICTORIA / DERROTA / CAMPAÑA COMPLETADA
+VICTORIA --Siguiente jefe--> DETALLE del siguiente · DERROTA --Reintentar--> JUGANDO
 ```
-
-**Escenas** (`Juego.escena`): `nivel` → (al tocar el portal, una sola vez) → `arena`.
-
-**Quién guarda cada dato** (sin duplicados):
 
 | Dueño | Datos |
 |---|---|
-| `Juego` | estado, escena, sólidos, portal, enemigos, baterías y contador, pulsos (aliados), proyectiles (hostiles), jefe, cámara, posición segura, "esperar a soltar el clic" |
-| `Robot` | rectángulo, velocidad vertical, apoyo, agachado, volando, energía, dirección y ángulo del arma, vidas, invulnerabilidad, espera de disparo |
-| `Jefe` | posición, dirección, fase, vida y vida máxima, transición, estado (aviso, ataque o descanso), temporizador, patrón, emisiones, objetivo de la ráfaga corta |
-| `Proyectil` | posición, dirección unitaria, velocidad, aliado u hostil, alcance, recorrido, daño |
+| `Juego` | pantalla actual, jefe elegido, robot, jefe, sólidos, pulsos (aliados), proyectiles (hostiles), "esperar a soltar el clic" |
+| `Robot` | rectángulo, velocidad, apoyo, postura, energía, apuntado, vidas, invulnerabilidad, espera de disparo |
+| `JefeBase` y cada jefe | posición, fase, vida y vida máxima, transición, estado, temporizador, patrón y datos propios de sus ataques |
+| `Progreso` | jefes desbloqueados, victorias y aviso de restablecimiento |
 
-**Fases del jefe:**
-
-```
-FASE 1 (40 de vida) --vida llega a 0--> TRANSICIÓN (1,5 s) --> FASE 2 (60 de vida) --vida llega a 0--> VICTORIA
-  descanso 1,2 s -> aviso 0,75 s -> ráfaga | bajos        sin ataques ni daño;        descanso 0,8 s -> aviso 0,6 s -> abanico | ráfagas cortas
-                                                          se borran los proyectiles     velocidad +25 %
-```
-
-La recarga a 60 ocurre solo en `terminar_transicion()`, y a la transición solo se entra desde la fase 1. Por eso no puede repetirse.
-
-## Ambientación y dificultad
-
-**Estación abandonada** (todo en `world/theme.py`):
-- **Fondo:** módulos lejanos con ventanas encendidas o apagadas, vigas y cables. Se mueve a la mitad de velocidad que la cámara, para dar profundidad.
-- **Superficies:** suelo de placas metálicas con juntas, y plataformas de chapa con remaches. Ambos tienen una franja de luz cian arriba.
-- **Arena:** la cámara del núcleo de energía, con el núcleo apagado detrás del jefe. La compuerta del nivel lleva hacia ahí.
-- **Colores que distinguen a cada uno:**
-  - NEXO-7: blanco con detalles cian;
-  - drones enemigos: rojo;
-  - pulsos aliados: cian;
-  - proyectiles hostiles: magenta (dirigidos) y naranja (bajos);
-  - Centinela Eclipse: índigo con un ojo de eclipse; en la fase 2, rojo con rejillas brillantes.
-
-**Parámetros de dificultad** (todos en `config.py`):
-
-| Parámetro | Valor |
-|---|---|
-| Corazones / invulnerabilidad | 3 / 1,2 s |
-| Pulso | cada 0,3 s, alcance 350 px, máximo 2, 8 px por paso |
-| Propulsor | 0,8 s de uso, recarga en 1,5 s apoyado, subida máxima 6 px por paso |
-| Jefe, fase 1 | 40 de vida, velocidad 2, aviso 0,75 s, descanso 1,2 s |
-| Jefe, fase 2 | 60 de vida, velocidad 2,5 (+25 %), aviso 0,6 s, descanso 0,8 s |
-| Transición | 1,5 s |
-| Abanico | 5 proyectiles a 0°, 15°, 30°, 45° y 60° sobre la horizontal |
-| Ráfagas cortas | 3 ráfagas de 3 disparos (6 pasos entre disparos, 36 entre ráfagas) |
-| Proyectiles hostiles | velocidad 5, máximo 12 activos (si no hay lugar, la emisión espera) |
+**Cómo se agrega un jefe:** se crea `entities/bosses/nuevo.py` con una clase que hereda de `JefeBase`. Esa clase define sus datos (nombre, vidas, avisos, fondo, plataformas), `patrones()`, `duracion_aviso()`, `duracion_descanso()`, `mover_en_descanso()`, `iniciar_ataque()`, `paso_ataque()` y `dibujar()`. Después se agrega a la lista `JEFES`.
 
 ## Dónde modificar cada cosa
 
 | Quiero cambiar… | Archivo |
 |---|---|
-| Velocidades, salto, propulsor, vidas, ataque, tiempos y vida del jefe | `config.py` |
-| Controles (teclas) | `config.py` (sección Controles) |
-| Cómo se mueve o vuela NEXO-7 | `systems/movement.py` y `entities/robot.py` (`actualizar`) |
-| Cómo apunta o dispara | `entities/robot.py` (`apuntar`, `disparar`) |
-| Enemigos comunes (o agregar un tipo nuevo) | `entities/enemies.py`, y su ubicación en `world/level.py` |
-| Fases y patrones del jefe | `entities/boss.py` (`emitir`, `espera_tras_emision`, `PATRONES`) |
-| Plataformas, baterías, portal y arena | `world/level.py` |
-| Colores, fondos y aspecto general | `world/theme.py` (más el `dibujar()` de cada entidad) |
-| Botones y textos de los menús | `ui/menus.py` |
-| Información en pantalla | `ui/hud.py` |
+| Velocidades, salto, propulsor, corazones, ataque, controles | `config.py` |
+| Reglas comunes de los jefes (transición, límite de proyectiles) | `config.py` y `entities/bosses/base.py` |
+| Vida, avisos, descansos, velocidades y patrones de un jefe | Su módulo en `entities/bosses/` (parámetros al principio) |
+| Orden de la campaña | `entities/bosses/__init__.py` (lista `JEFES`) |
+| Plataformas de una arena | Atributo `PLATAFORMAS` del jefe; el suelo, en `world/arena.py` |
+| Colores y fondos | `world/theme.py` (más el `dibujar()` de cada jefe) |
+| Pantallas y botones | `ui/menus.py` |
+| Información en combate | `ui/hud.py` |
+| Formato del guardado | `systems/progress.py` |
 
 ---
 
@@ -746,6 +752,140 @@ Realiza la reorganización conservando el comportamiento existente, y después i
 | Límite de 12 proyectiles | El disparo se perdía | La emisión espera hasta que haya lugar |
 | Pulsos y disparos del jefe | Dos clases (`Pulso`, `Proyectil`) | Una sola clase `Proyectil` (aliado u hostil) |
 
+
+### Prompt 7: cambio de concepto a "NEXO-7: Arena Eclipse"
+
+**Qué se pidió a la IA:**
+- Convertir el juego en **combates contra jefes**: quitar el nivel de plataformas, las baterías y el portal.
+- Agregar una pantalla de **selección de jefe** con desbloqueos en orden, guardados en un **JSON local**.
+- Darle a NEXO-7 **4 corazones**.
+- Crear **tres jefes** distintos, cada uno en su propio módulo, con dificultad creciente.
+
+**Por qué se refinó el prompt así:**
+- Se dijo de forma explícita que el prompt **reemplaza** reglas anteriores (3 corazones, un solo jefe), igual que en los prompts 3 y 6, para evitar contradicciones.
+- Cada jefe tiene un **propósito de diseño** ("enseñar a leer avisos", "combinar salto y agacharse", "apuntar en varias direcciones") y se pidió **no subir la dificultad solo con más vida**. Así la IA diseña patrones diferentes en lugar de copiar al mismo jefe con más vida.
+- Se pidió qué hacer si el **archivo de guardado está dañado**. Si no se piensa, es un error que cierra el juego.
+- "Prioriza primero un combate completo; después los otros dos" llevó a trabajar en **dos commits**:
+  - **Etapa A:** el flujo completo con el Jefe 1, ya probado.
+  - **Etapa B:** los jefes 2 y 3, con la misma estructura y las mismas pruebas genéricas.
+
+<details>
+<summary>Texto completo del prompt 7</summary>
+
+```
+ROL
+Actúa como desarrollador de videojuegos en Python y tutor. Modifica el proyecto existente con una estructura modular y código comprensible.
+CAMBIO DE CONCEPTO
+Transforma RoboAventura en "NEXO-7: Arena Eclipse", un juego centrado exclusivamente en combates contra jefes.
+Elimina del recorrido jugable la sección de plataformas, la recolección de baterías y el portal. Desde el menú, el jugador debe seleccionar un jefe desbloqueado y entrar directamente a su arena.
+Esta solicitud reemplaza las reglas anteriores de tres corazones y un único jefe.
+OBJETIVO
+Implementa tres jefes originales con dificultad creciente, movimientos y patrones diferentes. El jugador debe vencerlos en orden para desbloquear el siguiente.
+PROGRESIÓN Y DIFICULTAD
+* Al comenzar por primera vez, solamente está disponible el primer jefe.
+* Vencer al primero desbloquea al segundo.
+* Vencer al segundo desbloquea al tercero.
+* Vencer al tercero muestra una pantalla de campaña completada.
+* Permite volver a combatir contra cualquier jefe desbloqueado.
+* Perder no elimina los desbloqueos.
+* La dificultad aumenta entre encuentros; no agregues todavía un selector adicional de modos fácil, normal y difícil.
+* Guarda únicamente los desbloqueos y las victorias en un archivo JSON local.
+* Si el archivo no existe, inicia una progresión nueva. Si está dañado, evita que el juego se cierre e informa que se ha restablecido el progreso.
+* No utilices cuentas, internet ni bases de datos.
+SALUD DEL JUGADOR
+* NEXO-7 tiene cuatro corazones.
+* Cada impacto resta un corazón.
+* Conserva 1,2 segundos de invulnerabilidad después del daño.
+* Comienza cada combate o reintento con cuatro corazones y energía completa.
+* La transición de fase del jefe no recupera los corazones del jugador.
+* Al perder, permite reintentar el jefe actual o regresar a la selección.
+JEFE 1: CENTINELA ECLIPSE
+Dificultad inicial. Su función es enseñar a reconocer avisos y esquivar.
+* Permanece en el suelo y patrulla lentamente.
+* Fase 1: 24 puntos de vida.
+* Alterna proyectiles bajos que puedan saltarse y ráfagas dirigidas hacia la posición del jugador.
+* Utiliza avisos de 0,8 segundos y descansos de 1,4 segundos.
+* Fase 2: recarga una nueva barra de 32 puntos.
+* Aumenta moderadamente la frecuencia de disparo e incorpora una ráfaga adicional, conservando oportunidades claras para contraatacar.
+JEFE 2: EMBESTIDOR FÉRREO
+Dificultad intermedia. Exige combinar desplazamiento, salto y postura agachada.
+* Se desplaza más rápido que el primer jefe.
+* Fase 1: 36 puntos de vida.
+* Alterna embestidas horizontales anunciadas y abanicos de proyectiles con espacios seguros.
+* Antes de embestir, señala su dirección y permite saltar por encima.
+* Fase 2: recarga una nueva barra de 48 puntos.
+* Combina una embestida con una ráfaga posterior, separadas por un aviso que permita reaccionar.
+* Utiliza avisos de al menos 0,6 segundos y descansos de un segundo entre secuencias.
+JEFE 3: SERAFÍN VOLTAICO
+Dificultad avanzada. Exige apuntar en varias direcciones y aprovechar el propulsor.
+* Vuela entre posiciones delimitadas de la arena.
+* Fase 1: 48 puntos de vida.
+* Alterna abanicos descendentes y ráfagas dirigidas hacia posiciones concretas del jugador.
+* Fase 2: recarga una nueva barra de 64 puntos.
+* Aumenta la velocidad de desplazamiento y combina sus patrones en secuencias más exigentes.
+* Utiliza avisos de al menos 0,5 segundos y descansos de 0,8 segundos.
+* No permanezcas fuera del alcance del jugador: incluye posiciones y ventanas de ataque alcanzables con el salto y el propulsor breve.
+* Evita que el combate requiera vuelo continuo.
+REGLAS COMUNES DE LOS JEFES
+* Cada jefe tiene exactamente dos fases.
+* Agotar la primera barra inicia una transición única de 1,5 segundos.
+* Durante la transición, limpia los proyectiles hostiles, suspende el daño de ambos personajes y muestra el nombre de la nueva fase.
+* La segunda barra se carga una sola vez. No debe regenerarse continuamente.
+* Agotar la segunda barra produce la victoria.
+* Cada pulso del jugador causa un punto de daño.
+* Los proyectiles dirigidos no persiguen al jugador después de lanzarse.
+* Limita a doce los proyectiles hostiles activos.
+* Los patrones deben ser reconocibles, evitables y distintos entre jefes.
+* No aumentes la dificultad solamente mediante más vida: utiliza movimientos, combinaciones y ritmos diferentes.
+CONTROLES Y MOVILIDAD
+Conserva:
+* A/D o flechas para desplazarse.
+* Espacio para saltar.
+* S o flecha abajo para agacharse, reduciendo realmente la zona de colisión.
+* Shift para activar el propulsor en el aire.
+* Propulsor con 0,8 segundos de energía y recarga completa en 1,5 segundos de contacto con suelo o plataformas.
+* Apuntado con mouse: ±60° respecto a la horizontal en el suelo y 360° en el aire.
+* Disparo con clic izquierdo, intervalo de 0,3 segundos, alcance de 350 píxeles y máximo de dos pulsos activos.
+INTERFAZ
+* Menú principal con "Jugar" y "Salir".
+* Pantalla de selección con los tres jefes, su dificultad y su estado: bloqueado, disponible o derrotado.
+* Los jefes bloqueados deben verse, pero no poder seleccionarse.
+* Antes de entrar, muestra sus características y un botón "Combatir".
+* Durante el combate, muestra cuatro corazones, energía del propulsor, nombre del jefe, fase y barra de vida.
+* Conserva el botón de pausa con "Continuar", "Reintentar", "Selección de jefe" y "Salir".
+* Después de vencer, ofrece "Siguiente jefe" cuando corresponda y "Selección de jefe".
+* Los clics sobre botones nunca deben generar disparos.
+ESTRUCTURA MODULAR
+* Mantén main.py como punto de entrada pequeño.
+* Separa configuración, coordinación del juego, robot, movimiento, colisiones, proyectiles, arenas, menús, HUD y progreso.
+* Coloca cada jefe en un módulo propio dentro de entities/bosses/.
+* Comparte únicamente la lógica común necesaria.
+* Retira del flujo activo los módulos de baterías, portal y recorrido anterior.
+* No agregues NPCs, enemigos comunes, armas, inventarios ni funciones ajenas a estos combates.
+ENTREGA
+1. Presenta el árbol actualizado de archivos y sus responsabilidades.
+2. Entrega los archivos modificados o nuevos completos.
+3. Explica los desbloqueos, el guardado local y las diferencias entre jefes.
+4. Actualiza el README con instalación, controles y progresión.
+5. Verifica selección, bloqueos, victorias, reintentos, transiciones, pausa y restauración de estados.
+6. Distingue las pruebas realizadas de las pendientes y documenta las limitaciones reales.
+Prioriza primero un combate completo que funcione; después incorpora los otros dos mediante la misma estructura modular.
+```
+
+</details>
+
+**Cambios respecto a la versión 6:**
+
+| Elemento | Versión 6 | Versión 7 |
+|---|---|---|
+| Concepto | Plataformas + un jefe al final | Solo combates contra jefes, elegidos desde un menú |
+| Nivel, baterías, portal y enemigos comunes | Sí | Retirados (`world/level.py` y `entities/enemies.py` borrados) |
+| Jefes | Centinela Eclipse (40 + 60) | Centinela (24 + 32), Embestidor (36 + 48) y Serafín (48 + 64), cada uno en `entities/bosses/` |
+| Vidas de NEXO-7 | 3 | 4, y la transición del jefe no las recupera |
+| Progreso | No se guardaba | `progreso.json` con desbloqueos y victorias |
+| Pantallas | Inicio, pausa, victoria, derrota | Menú, selección, detalle, combate, pausa, victoria, derrota y campaña completada |
+| Lógica de jefe | Una clase con todo | `JefeBase` (común) + un módulo por jefe (lo propio) |
+
 ---
 
 ## Cómo funciona (resumen técnico)
@@ -820,11 +960,50 @@ Realiza la reorganización conservando el comportamiento existente, y después i
   - Los dos patrones usan aviso de 0,6 s.
 - **Límite de 12:** antes de cada emisión, el jefe revisa si caben sus proyectiles (5 para el abanico). Si no caben, no avanza y lo vuelve a intentar en el siguiente paso.
 
+### Versión 7: selección de jefes, progreso y tres jefes
+
+- **Pantallas:** `Juego.estado` toma uno de estos valores: menú, selección, detalle, jugando, pausa, victoria, derrota o campaña. `manejar_clic()` busca el botón pulsado (como máximo uno) y cambia de pantalla. Las tarjetas de jefes bloqueados devuelven `None` y no hacen nada.
+- **Combate:** `iniciar_combate(indice)` crea un `Robot` nuevo (4 corazones, energía llena), el jefe de esa posición en `JEFES`, y los sólidos de su arena con las plataformas del jefe. Lo usan "Combatir" y "Reintentar"; por eso un reintento lo restaura todo.
+- **Victoria:** `revisar_fin()` revisa primero si el jefe fue derrotado; así, si los dos llegan a 0 en el mismo paso, gana NEXO-7. Llama a `Progreso.registrar_victoria()`, que suma la victoria, desbloquea el siguiente jefe y guarda.
+- **Máquina de estados común** (`JefeBase.actualizar`):
+  - en la transición solo cuenta 90 pasos y después recarga la segunda barra;
+  - en el descanso llama a `mover_en_descanso()`; si devuelve `True` (el jefe todavía se está acomodando), el descanso no corre;
+  - en el aviso, lo mismo con `mover_en_aviso()`;
+  - en el ataque llama a `paso_ataque()` hasta que devuelve `True`, y entonces pasa al siguiente patrón.
+- **Centinela Eclipse:** patrulla entre x=420 y 920. Los proyectiles bajos salen cada 45 pasos (36 en la fase 2). La ráfaga es de 3 disparos cada 24 pasos (18 en la fase 2). La ráfaga doble son dos ráfagas de 3 separadas por 40 pasos.
+- **Embestidor Férreo:**
+  - Al empezar el aviso decide hacia dónde embestirá (hacia NEXO-7) y dibuja una flecha en el suelo.
+  - Embiste a 8 px/paso (9,5 en la fase 2) hasta la pared. Mide 76 px de alto, así que el salto de 136 px lo supera.
+  - El abanico son 5 disparos a −24°, −12°, 0°, 12° y 24° alrededor de la dirección al pecho de NEXO-7. Si NEXO-7 se agacha cuando llegan, el central pasa por encima y los inferiores se pierden en el suelo.
+  - En la fase 2: embestida, luego un aviso de 40 pasos y después una ráfaga de 3.
+- **Serafín Voltaico:**
+  - Vuela a 4 px/paso (5,5 en la fase 2) entre posiciones altas (y = 160–200) para atacar y posiciones bajas (centro en y = 400, borde inferior en 435) para descansar.
+  - El descanso cuenta desde que llega abajo: son 0,8 s quieto, la ventana de ataque.
+  - El abanico descendente son 5 disparos hacia abajo separados 16°, con huecos entre ellos al llegar al suelo.
+  - Su arena tiene una plataforma central bajo la posición alta del medio.
+
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 7: 134 de 134 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Las pruebas recorren la lista `JEFES`, así que las reglas comunes se verificaron en los tres jefes:
+
+| Grupo | Qué se comprobó | Resultado |
+|---|---|---|
+| NEXO-7 | 4 corazones; 72 pasos de invulnerabilidad; salto de 136 px; agachado de 24 px; propulsor de 48 pasos y recarga de 90; ±60° en el suelo y 360° en el aire; disparo cada 18 pasos, máximo 2, alcance de 350 px en diagonal | ✅ |
+| Progreso | Sin archivo: solo el Jefe 1. Vencer al 1 desbloquea al 2 y al 2 el 3. Se guarda solo `desbloqueados` y `victorias`, y se recupera al volver a abrir. 7 tipos de archivo dañado (texto roto, rangos y tipos inválidos, campos faltantes, archivo vacío): no se cierra, restablece y avisa en el menú | ✅ |
+| Menús | Jugar y Salir; 3 tarjetas; los bloqueados no se eligen; detalle con Combatir y Volver; botones de pausa, derrota y victoria; Salir desde el menú, la pausa y la campaña; cambio de color con el cursor | ✅ |
+| Clics | Combatir, Continuar y Reintentar no disparan hasta soltar el clic; no se dispara en ninguna pantalla que no sea el combate | ✅ |
+| Cada jefe | Empieza en la fase 1 con su vida. La transición de 90 pasos borra los proyectiles, no daña a nadie y no recupera corazones. La segunda barra se carga una sola vez y agotarla da la victoria. Alterna sus patrones con aviso. Avisos y descansos de al menos lo pedido. Nunca más de 12 proyectiles en 8000 pasos. Los proyectiles no cambian de dirección. La pausa congela todo. Reintentar restaura 4 corazones, energía y fase 1. Perder no quita desbloqueos. Empate = victoria. La victoria se guarda y desbloquea. "Siguiente jefe" abre el detalle del próximo | ✅ ×3 |
+| Diferencias | Ningún patrón se repite entre jefes; el Embestidor es más rápido; avisos y descansos que se acortan de jefe en jefe (48/36/30 y 84/60/48 pasos); vidas pedidas | ✅ |
+| Centinela | Siempre en el suelo, patrulla a ≤ 2 px por paso; en la fase 2 dispara más seguido y la ráfaga doble lanza 6 | ✅ |
+| Embestidor | La flecha apunta a NEXO-7; quieto recibe la embestida; saltando cuando está a 40–92 px (fase 1) o a 48–140 px (fase 2) no hay daño; abanico: quieto de pie recibe daño, agachándose después del disparo no; fase 2: embestida → aviso de 40 pasos → ráfaga | ✅ |
+| Serafín | Vuela entre posiciones altas y bajas sin salir de la arena; en cada descanso baja a 435 px; desde el suelo, sin saltar, le acierta en la ventana baja; en la posición alta central se le alcanza desde la plataforma con salto y propulsor; abanico descendente con daño en unos lugares y espacios seguros entre rayos | ✅ |
+| Combates completos | Un jugador automático, que en cada paso simula 7 acciones durante 30 pasos y elige la que no choca, vence al Centinela (19 s, terminó con 3 corazones), al Embestidor (28 s, con 1) y al Serafín (122 s, con 4). **Nunca usa el propulsor**: el combate no exige volar | ✅ |
+
+También se ejecutó `main.py` con clics simulados (menú → selección → detalle → combate → pausa → Salir), sin errores.
 
 **Versión 6: 176 de 176 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8.
 
@@ -997,6 +1176,11 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 9. **(Versión 5) Posición segura con la altura variable:** como ahora la altura del robot cambia, la posición segura se guarda por los pies (`bottomleft`). Si se guardara la esquina superior, el robot podría reaparecer metido en el suelo.
 10. **(Versión 6) Superposición en el HUD:** en una captura, "Centinela Eclipse · Fase 2 · 60/60" se encimaba con el indicador del pulso. **Ajuste:** el indicador se acortó ("Pulso: listo") y la vida del jefe pasó debajo de la barra.
 11. **(Versión 6) Reorganizar sin romper:** antes de cambiar la jugabilidad, la versión modular se probó con las 136 pruebas de la versión 5. Pasaron todas, lo que confirma que el comportamiento se conservó. Para no perder datos entre módulos, la vida, la invulnerabilidad y la espera de disparo pasaron del `Juego` al `Robot`, que es su dueño.
+12. **(Versión 7) Tarjetas superpuestas:** en la primera captura de la selección, las tres tarjetas de 270 px se encimaban (estaban separadas solo 240). **Ajuste:** tarjetas de 250 px separadas 270, y la dificultad con una fuente más pequeña.
+13. **(Versión 7) Título del jefe sobre los corazones:** con 4 corazones, "Embestidor Férreo · Fase 2: Metal al rojo" chocaba con ellos. **Ajuste:** el título del jefe usa una fuente más pequeña.
+14. **(Versión 7) Plataforma que tapaba la ventana de ataque:** la posición baja izquierda del Serafín quedaba encima de una plataforma. Los disparos desde el suelo chocaban con ella y el jefe incluso se metía 5 px en la plataforma. Una prueba lo detectó (0 impactos en 1 s). **Ajuste:** las posiciones bajas pasaron a x = 200 y 760, y la arena quedó con una sola plataforma central bajo la posición alta del medio.
+15. **(Versión 7) Nombres de patrones repetidos:** el Centinela y el Serafín tenían ambos una "ráfaga dirigida", y el Embestidor y el Serafín un "doble abanico". Se comportan distinto, pero los nombres confundían. **Ajuste:** los del Serafín se llaman "descarga aérea" y "lluvia doble".
+16. **(Versión 7) Lo que las pruebas enseñaron sobre los abanicos dirigidos:** el abanico del Embestidor apunta al pecho de NEXO-7 en el momento del disparo, así que agacharse antes no sirve. La forma correcta es estar de pie cuando dispara y agacharse cuando llega. Se documentó en el detalle del jefe ("abanico hacia ti con espacios").
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -1081,6 +1265,20 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 64. Ráfagas cortas: moverse o agacharse entre ráfagas; cada ráfaga va adonde estaba NEXO-7 cuando empezó.
 65. Vencer la fase 2: victoria. Volver a jugar y llegar otra vez a la arena: el Centinela empieza en la fase 1 con 40.
 
+**NEXO-7: Arena Eclipse (versión 7):**
+
+66. Borrar `progreso.json` y abrir el juego: en la selección solo el Centinela está disponible; los otros dos se ven grises con candado y no responden al clic.
+67. Escribir texto cualquiera en `progreso.json` y abrir el juego: no se cierra y el menú avisa que se restableció el progreso.
+68. Vencer al Centinela: "Siguiente jefe" lleva al detalle del Embestidor. En la selección, el Centinela figura como "Derrotado (1)".
+69. Cerrar y volver a abrir el juego: los desbloqueos siguen.
+70. Perder contra el Embestidor: "Reintentar" empieza con 4 corazones y el jefe en la fase 1; "Selección de jefe" mantiene los desbloqueos.
+71. En cada jefe, agotar la fase 1: aparece "Fase 2: …", desaparecen los proyectiles y no se recuperan corazones.
+72. Embestidor: saltar por encima de la embestida siguiendo la flecha; en el abanico, agacharse cuando llegan los disparos.
+73. Serafín: dispararle cuando baja a descansar; desde la plataforma central, alcanzarlo arriba con salto y propulsor; buscar los huecos del abanico descendente.
+74. Vencer al Serafín: aparece "¡Campaña completada!".
+75. Pausar en cada jefe: todo se congela. Probar Continuar, Reintentar, Selección de jefe y Salir.
+76. Hacer clic en Combatir, Continuar o Reintentar y mantener el botón: no sale ningún disparo hasta soltar.
+
 ### Limitaciones conocidas
 
 - Las pruebas automáticas no reemplazan jugarlo: falta probarlo con ventana real y teclado.
@@ -1105,7 +1303,13 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 6)** Durante la transición, los pulsos atraviesan al jefe sin hacerle daño y no desaparecen. Se puede seguir disparando, pero no sirve.
 - **(Versión 6)** El propulsor recarga de forma proporcional al tiempo apoyado: desde vacío, 1,5 s de contacto lo llenan; si despega antes, conserva la parte recargada.
 - **(Versión 6)** Los nombres de las versiones anteriores (VOLTARÓN, "el robot") quedaron en la historia de este README a propósito, como evidencia de cada iteración.
-- **Pendiente:** jugar las versiones 2 a 6 con ventana, teclado y ratón reales (pruebas manuales 10 a 65). Sobre todo, falta sentir si el combate de dos fases es justo para una persona y si el propulsor de 0,8 s alcanza para esquivar.
+- **(Versión 7)** Las pruebas manuales 1 a 65 son de las versiones anteriores (plataformas, baterías, portal). Quedan como historia; para la versión actual valen la 35 a la 57 (menús, pausa, apuntado, agacharse, propulsor) y las 66 a 76.
+- **(Versión 7)** La dificultad se comprobó con un jugador automático que ve todos los proyectiles y reacciona en cada paso. Contra el Embestidor terminó con 1 corazón: para una persona puede ser bastante más difícil. El Serafín le tomó 122 s, porque sus ventanas de ataque son cortas.
+- **(Versión 7)** Contra el Embestidor, agacharse solo sirve si NEXO-7 estaba de pie cuando salió el abanico; muy cerca del jefe (a menos de ~220 px), el rayo inferior también alcanza al robot agachado.
+- **(Versión 7)** El abanico descendente del Serafín tiene huecos de unos 35 px entre rayos al llegar al suelo. Alejarse a más de ~220 px de su vertical es más seguro que buscar el hueco.
+- **(Versión 7)** El progreso se guarda junto al código (`progreso.json`). Si la carpeta es de solo lectura, el juego sigue funcionando, pero avisa que no pudo guardar.
+- **(Versión 7)** `requirements.txt` sigue pidiendo `pygame`. En Python 3.14 hay que instalar `pygame-ce` a mano.
+- **Pendiente:** jugar los tres jefes con ventana, teclado y ratón reales (pruebas manuales 66 a 76). Sobre todo, falta comprobar que la curva de dificultad sea justa para una persona.
 
 ## Reflexión final
 
