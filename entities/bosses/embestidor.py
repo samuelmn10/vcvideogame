@@ -1,8 +1,9 @@
 """Jefe 2: Embestidor Férreo (dificultad intermedia).
 
 Exige combinar desplazamiento, salto y agacharse: es más rápido que el Centinela,
-embiste de pared a pared (se salta por encima) y lanza abanicos dirigidos con
-espacios entre los proyectiles. En la fase 2 encadena una embestida con una
+embiste una distancia fija que el aviso marca en el suelo (se esquiva saliendo de
+la zona o saltando por encima) y lanza abanicos dirigidos con espacios entre los
+proyectiles. En la fase 2 encadena una embestida con una
 ráfaga, separadas por un segundo aviso.
 """
 
@@ -20,8 +21,10 @@ DESCANSO_PASOS = 60          # 1 s entre secuencias
 VELOCIDAD = 3                # patrulla (el Centinela va a 1,5)
 VELOCIDAD_FASE_2 = 3.6
 VELOCIDAD_EMBESTIDA = 8
-VELOCIDAD_EMBESTIDA_2 = 9.5
-LIMITES = (0, c.ANCHO_VENTANA)   # embiste de pared a pared
+VELOCIDAD_EMBESTIDA_2 = 9
+DISTANCIA_EMBESTIDA = 320    # recorrido fijo de cada embestida (el aviso marca dónde termina)
+DISTANCIA_EMBESTIDA_2 = 400
+LIMITES = (0, c.ANCHO_VENTANA)   # nunca sale de la arena
 ANGULOS_ABANICO = (-24, -12, 0, 12, 24)  # grados alrededor de la dirección hacia NEXO-7
 PAUSA_DOBLE_ABANICO = 30
 DESVIO_SEGUNDO_ABANICO = 6   # el segundo abanico se corre 6° para mover los huecos
@@ -39,7 +42,7 @@ class EmbestidorFerreo(JefeBase):
     DIFICULTAD = "Intermedia"
     DESCRIPCION = (
         "Máquina de carga blindada, más rápida que el Centinela.",
-        "Embestida: la flecha marca hacia dónde va. Salta por encima.",
+        "Embestida: la franja marca hasta dónde llega. Sal de ella o sáltalo.",
         "Abanico: cinco proyectiles hacia ti con espacios entre ellos.",
         "Fase 2: embestida, segundo aviso y ráfaga. Avisos de 0,67 s.",
     )
@@ -49,14 +52,15 @@ class EmbestidorFerreo(JefeBase):
     VIDA_FASE_2 = 48
     AVISO_MINIMO = 36
     DESCANSO_MINIMO = DESCANSO_PASOS
-    ANCHO = 96
-    ALTO = 76    # bajo: el salto (136 px) lo supera
+    ANCHO = 84
+    ALTO = 56    # bajo y angosto: el salto (136 px) lo supera con margen
     FONDO = "hangar"
 
     def __init__(self):
         super().__init__()
         self.direccion = -1
         self.direccion_embestida = -1
+        self.destino_x = self.x    # dónde termina la embestida (borde izquierdo del jefe)
         self.etapa = ""        # etapa dentro del ataque actual
         self.espera = 0
         self.disparos = 0
@@ -76,8 +80,11 @@ class EmbestidorFerreo(JefeBase):
         return False
 
     def preparar_aviso(self, robot):
-        # La dirección de la embestida se decide al empezar el aviso y se muestra con la flecha
+        # La dirección y el punto final se deciden al empezar el aviso y se marcan en el suelo
         self.direccion_embestida = 1 if robot.rect.centerx > self.rect.centerx else -1
+        distancia = DISTANCIA_EMBESTIDA_2 if self.en_segunda_fase() else DISTANCIA_EMBESTIDA
+        destino = self.x + self.direccion_embestida * distancia
+        self.destino_x = max(LIMITES[0], min(LIMITES[1] - self.ANCHO, destino))
 
     def iniciar_ataque(self, robot):
         self.etapa = "embestir" if self.patron() in (EMBESTIDA, COMBO) else "abanico"
@@ -92,7 +99,10 @@ class EmbestidorFerreo(JefeBase):
         if self.etapa == "embestir":
             velocidad = VELOCIDAD_EMBESTIDA_2 if self.en_segunda_fase() else VELOCIDAD_EMBESTIDA
             self.direccion = self.direccion_embestida
-            if self.mover_x(velocidad, *LIMITES):  # llegó a la pared
+            restante = abs(self.destino_x - self.x)
+            self.x += self.direccion * min(velocidad, restante)
+            self.rect.x = round(self.x)
+            if restante <= velocidad:  # llegó al final marcado
                 if self.patron() == EMBESTIDA:
                     return True
                 self.etapa = "aviso_rafaga"
@@ -157,13 +167,15 @@ class EmbestidorFerreo(JefeBase):
         if self.estado == AVISO:
             self.dibujar_senal_aviso(pantalla)
             if self.patron() in (EMBESTIDA, COMBO):
-                # Flecha en el suelo: hacia dónde va a embestir
+                # Franja en el suelo: la zona exacta que va a recorrer, con la flecha hasta el final
                 d = self.direccion_embestida
-                inicio = r.right + 10 if d > 0 else r.left - 10
-                fin = inicio + d * 150
-                y = c.ALTURA_SUELO - 10
-                pygame.draw.line(pantalla, theme.AVISO, (inicio, y), (fin, y), 6)
-                pygame.draw.polygon(pantalla, theme.AVISO, [(fin + d * 20, y), (fin, y - 14), (fin, y + 14)])
+                inicio = r.right if d > 0 else r.left
+                fin = self.destino_x + self.ANCHO if d > 0 else self.destino_x
+                izquierda, ancho = min(inicio, fin), abs(fin - inicio)
+                pygame.draw.rect(pantalla, theme.AVISO, (izquierda, c.ALTURA_SUELO - 6, ancho, 6))
+                y = c.ALTURA_SUELO - 22
+                pygame.draw.line(pantalla, theme.AVISO, (inicio + d * 10, y), (fin - d * 18, y), 4)
+                pygame.draw.polygon(pantalla, theme.AVISO, [(fin, y), (fin - d * 18, y - 10), (fin - d * 18, y + 10)])
             else:
                 x, y = self.punto_canon()
                 for grados in (-24, 0, 24):
