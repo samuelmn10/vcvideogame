@@ -69,7 +69,7 @@ El progreso se guarda en `progreso.json`, junto a `main.py`. El archivo no se su
 |---|---|---|---|
 | Dificultad | Inicial | Intermedia | Avanzada |
 | Vida (fase 1 + fase 2) | 24 + 32 | 36 + 48 | 48 + 64 |
-| Movimiento | En el suelo, patrulla lenta (1,5 px/paso) | En el suelo, rápido (3 px/paso) y embestidas (8 y 9,5) | Vuela entre 3 posiciones altas y 2 bajas |
+| Movimiento | En el suelo, patrulla lenta (1,5 px/paso) | En el suelo, rápido (3 px/paso) y embestidas marcadas de 320 px (400 en la fase 2) | Vuela entre 3 posiciones altas y 2 bajas |
 | Patrones de la fase 1 | Proyectiles bajos · ráfaga dirigida | Embestida anunciada · abanico dirigido de 5 | Abanico descendente de 5 · descarga aérea dirigida |
 | Patrones de la fase 2 | Bajos más seguidos · ráfaga doble (6 disparos) | Embestida + aviso + ráfaga · doble abanico | Abanico + ráfaga · lluvia doble |
 | Aviso / descanso | 0,8 s / 1,4 s | 0,67 s / 1 s | 0,6 s y 0,5 s / 0,8 s (abajo, ventana de ataque) |
@@ -972,8 +972,17 @@ Prioriza primero un combate completo que funcione; después incorpora los otros 
   - en el ataque llama a `paso_ataque()` hasta que devuelve `True`, y entonces pasa al siguiente patrón.
 - **Centinela Eclipse:** patrulla entre x=420 y 920. Los proyectiles bajos salen cada 45 pasos (36 en la fase 2). La ráfaga es de 3 disparos cada 24 pasos (18 en la fase 2). La ráfaga doble son dos ráfagas de 3 separadas por 40 pasos.
 - **Embestidor Férreo:**
-  - Al empezar el aviso decide hacia dónde embestirá (hacia NEXO-7) y dibuja una flecha en el suelo.
-  - Embiste a 8 px/paso (9,5 en la fase 2) hasta la pared. Mide 76 px de alto, así que el salto de 136 px lo supera.
+  - Al empezar el aviso decide hacia dónde embestirá (hacia NEXO-7) y hasta dónde: 320 px (400 en la fase 2), sin salir de la arena. Pinta en el suelo una franja con esa zona exacta y una flecha hasta el final.
+  - Embiste a 8 px/paso (9 en la fase 2) y se detiene donde marcó. Mide 56 × 84 px, así que el salto de 136 px lo supera con margen.
+  - Se esquiva de varias formas, cada una con su margen para presionar la tecla (fase 1):
+
+    | Forma | Margen |
+    | --- | --- |
+    | Saltar alejándose | 1,03 s |
+    | Salir de la zona caminando durante el aviso | 0,88 s |
+    | Saltar hacia el jefe | 0,48 s |
+    | Saltar pegado a la pared | 0,37 s |
+    | Saltar quieto | 0,22 s |
   - El abanico son 5 disparos a −24°, −12°, 0°, 12° y 24° alrededor de la dirección al pecho de NEXO-7. Si NEXO-7 se agacha cuando llegan, el central pasa por encima y los inferiores se pierden en el suelo.
   - En la fase 2: embestida, luego un aviso de 40 pasos y después una ráfaga de 3.
 - **Serafín Voltaico:**
@@ -988,7 +997,7 @@ Prioriza primero un combate completo que funcione; después incorpora los otros 
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
 
-**Versión 7: 134 de 134 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Las pruebas recorren la lista `JEFES`, así que las reglas comunes se verificaron en los tres jefes:
+**Versión 7: 144 de 144 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Las pruebas recorren la lista `JEFES`, así que las reglas comunes se verificaron en los tres jefes:
 
 | Grupo | Qué se comprobó | Resultado |
 |---|---|---|
@@ -999,9 +1008,9 @@ Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa
 | Cada jefe | Empieza en la fase 1 con su vida. La transición de 90 pasos borra los proyectiles, no daña a nadie y no recupera corazones. La segunda barra se carga una sola vez y agotarla da la victoria. Alterna sus patrones con aviso. Avisos y descansos de al menos lo pedido. Nunca más de 12 proyectiles en 8000 pasos. Los proyectiles no cambian de dirección. La pausa congela todo. Reintentar restaura 4 corazones, energía y fase 1. Perder no quita desbloqueos. Empate = victoria. La victoria se guarda y desbloquea. "Siguiente jefe" abre el detalle del próximo | ✅ ×3 |
 | Diferencias | Ningún patrón se repite entre jefes; el Embestidor es más rápido; avisos y descansos que se acortan de jefe en jefe (48/36/30 y 84/60/48 pasos); vidas pedidas | ✅ |
 | Centinela | Siempre en el suelo, patrulla a ≤ 2 px por paso; en la fase 2 dispara más seguido y la ráfaga doble lanza 6 | ✅ |
-| Embestidor | La flecha apunta a NEXO-7; quieto recibe la embestida; saltando cuando está a 40–92 px (fase 1) o a 48–140 px (fase 2) no hay daño; abanico: quieto de pie recibe daño, agachándose después del disparo no; fase 2: embestida → aviso de 40 pasos → ráfaga | ✅ |
+| Embestidor | La embestida recorre 320 px y se detiene donde marcó el aviso; quieto en la zona recibe la embestida; salir de la zona caminando (0,88 s de margen), saltar alejándose (1,03 s), saltar quieto (0,22 s) y saltar pegado a la pared (0,37 s) evitan el daño, también en la fase 2; abanico: quieto de pie recibe daño, agachándose después del disparo no; fase 2: embestida → aviso de 40 pasos → ráfaga | ✅ |
 | Serafín | Vuela entre posiciones altas y bajas sin salir de la arena; en cada descanso baja a 435 px; desde el suelo, sin saltar, le acierta en la ventana baja; en la posición alta central se le alcanza desde la plataforma con salto y propulsor; abanico descendente con daño en unos lugares y espacios seguros entre rayos | ✅ |
-| Combates completos | Un jugador automático, que en cada paso simula 7 acciones durante 30 pasos y elige la que no choca, vence al Centinela (19 s, terminó con 3 corazones), al Embestidor (28 s, con 1) y al Serafín (122 s, con 4). **Nunca usa el propulsor**: el combate no exige volar | ✅ |
+| Combates completos | Un jugador automático, que en cada paso simula 7 acciones durante 30 pasos y elige la que no choca, vence al Centinela (19 s, terminó con 3 corazones), al Embestidor (31 s, con 4) y al Serafín (122 s, con 4). **Nunca usa el propulsor**: el combate no exige volar | ✅ |
 
 También se ejecutó `main.py` con clics simulados (menú → selección → detalle → combate → pausa → Salir), sin errores.
 
@@ -1181,6 +1190,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 14. **(Versión 7) Plataforma que tapaba la ventana de ataque:** la posición baja izquierda del Serafín quedaba encima de una plataforma. Los disparos desde el suelo chocaban con ella y el jefe incluso se metía 5 px en la plataforma. Una prueba lo detectó (0 impactos en 1 s). **Ajuste:** las posiciones bajas pasaron a x = 200 y 760, y la arena quedó con una sola plataforma central bajo la posición alta del medio.
 15. **(Versión 7) Nombres de patrones repetidos:** el Centinela y el Serafín tenían ambos una "ráfaga dirigida", y el Embestidor y el Serafín un "doble abanico". Se comportan distinto, pero los nombres confundían. **Ajuste:** los del Serafín se llaman "descarga aérea" y "lluvia doble".
 16. **(Versión 7) Lo que las pruebas enseñaron sobre los abanicos dirigidos:** el abanico del Embestidor apunta al pecho de NEXO-7 en el momento del disparo, así que agacharse antes no sirve. La forma correcta es estar de pie cuando dispara y agacharse cuando llega. Se documentó en el detalle del jefe ("abanico hacia ti con espacios").
+17. **(Versión 7) Embestida prácticamente imposible de esquivar (encontrado al jugar):** al probar el juego en la Mac, el estudiante reportó que la embestida del Embestidor no se podía evitar. Al medirlo se confirmó: cruzaba la arena de pared a pared, saltando quieto había solo 0,12 s para acertar el salto, y saltar alejándose (lo instintivo) era imposible. **Ajuste:** la embestida recorre una distancia fija (320 px; 400 en la fase 2) que el aviso marca en el suelo, y el jefe es más bajo y angosto (56 × 84 px). Ahora se puede salir de la zona durante el aviso (0,88 s de margen) o saltar alejándose (1,03 s). El jugador automático pasó de terminar con 1 corazón a no perder ninguno.
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -1273,7 +1283,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 69. Cerrar y volver a abrir el juego: los desbloqueos siguen.
 70. Perder contra el Embestidor: "Reintentar" empieza con 4 corazones y el jefe en la fase 1; "Selección de jefe" mantiene los desbloqueos.
 71. En cada jefe, agotar la fase 1: aparece "Fase 2: …", desaparecen los proyectiles y no se recuperan corazones.
-72. Embestidor: saltar por encima de la embestida siguiendo la flecha; en el abanico, agacharse cuando llegan los disparos.
+72. Embestidor: esquivar la embestida saliendo de la franja amarilla durante el aviso, y otras veces saltándola (alejándose, hacia él o pegado a la pared); en el abanico, agacharse cuando llegan los disparos.
 73. Serafín: dispararle cuando baja a descansar; desde la plataforma central, alcanzarlo arriba con salto y propulsor; buscar los huecos del abanico descendente.
 74. Vencer al Serafín: aparece "¡Campaña completada!".
 75. Pausar en cada jefe: todo se congela. Probar Continuar, Reintentar, Selección de jefe y Salir.
@@ -1304,7 +1314,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 6)** El propulsor recarga de forma proporcional al tiempo apoyado: desde vacío, 1,5 s de contacto lo llenan; si despega antes, conserva la parte recargada.
 - **(Versión 6)** Los nombres de las versiones anteriores (VOLTARÓN, "el robot") quedaron en la historia de este README a propósito, como evidencia de cada iteración.
 - **(Versión 7)** Las pruebas manuales 1 a 65 son de las versiones anteriores (plataformas, baterías, portal). Quedan como historia; para la versión actual valen la 35 a la 57 (menús, pausa, apuntado, agacharse, propulsor) y las 66 a 76.
-- **(Versión 7)** La dificultad se comprobó con un jugador automático que ve todos los proyectiles y reacciona en cada paso. Contra el Embestidor terminó con 1 corazón: para una persona puede ser bastante más difícil. El Serafín le tomó 122 s, porque sus ventanas de ataque son cortas.
+- **(Versión 7)** La dificultad se comprobó con un jugador automático que ve todos los proyectiles y reacciona en cada paso; para una persona será más difícil. El Serafín le tomó 122 s, porque sus ventanas de ataque son cortas.
 - **(Versión 7)** Contra el Embestidor, agacharse solo sirve si NEXO-7 estaba de pie cuando salió el abanico; muy cerca del jefe (a menos de ~220 px), el rayo inferior también alcanza al robot agachado.
 - **(Versión 7)** El abanico descendente del Serafín tiene huecos de unos 35 px entre rayos al llegar al suelo. Alejarse a más de ~220 px de su vertical es más seguro que buscar el hueco.
 - **(Versión 7)** El progreso se guarda junto al código (`progreso.json`). Si la carpeta es de solo lectura, el juego sigue funcionando, pero avisa que no pudo guardar.
