@@ -2,7 +2,7 @@
 
 Juego de combates contra jefes en 2D, hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos. Empezó como el plataformas "RoboAventura" (prompts 1 a 6) y en el prompt 7 se transformó en este juego.
 
-**NEXO-7**, un robot explorador, enfrenta a los tres sistemas de defensa de una estación abandonada, en orden de dificultad: el **Centinela Eclipse**, el **Embestidor Férreo** y el **Serafín Voltaico**. Vencer a cada uno desbloquea al siguiente. NEXO-7 tiene cuatro corazones, apunta y dispara con el ratón, se agacha para esquivar y tiene un propulsor breve.
+**NEXO-7**, un robot explorador, enfrenta a los tres sistemas de defensa de una estación abandonada, en orden de dificultad: el **Centinela Eclipse**, el **Embestidor Férreo** y el **Serafín Voltaico**. Vencer a cada uno desbloquea al siguiente. NEXO-7 tiene cuatro corazones, apunta y dispara con el ratón, se agacha para esquivar, tiene un propulsor breve y un superataque que se carga acertando disparos.
 
 ## Instalación y ejecución
 
@@ -32,6 +32,7 @@ python main.py
 | Shift (en el aire) | Propulsor: hasta 0,8 s de uso; se recarga en 1,5 s apoyado en el suelo o una plataforma |
 | Ratón | Apuntar: ±60° en el suelo, 360° en el aire |
 | Clic izquierdo (se puede mantener) | Disparar pulsos (uno cada 0,3 s, alcance 350 px, máximo 2 en pantalla) |
+| Clic derecho | Superataque (descarga de núcleo), disponible tras 10 pulsos acertados al jefe |
 | Clic izquierdo en los menús | Botones; un clic en un botón nunca dispara |
 
 ## Progresión
@@ -75,7 +76,18 @@ El progreso se guarda en `progreso.json`, junto a `main.py`. El archivo no se su
 | Aviso / descanso | 0,8 s / 1,4 s | 0,67 s / 1 s | 0,6 s y 0,5 s / 0,8 s (abajo, ventana de ataque) |
 | Qué enseña | Leer avisos y esquivar | Saltar, agacharse y moverse | Apuntar en varias direcciones y usar el propulsor |
 
+### Superataque
+
+Cada pulso que acierta al jefe llena un poco la barra **Súper** del HUD. Con **10 aciertos**, la barra brilla, el pecho de NEXO-7 se ilumina y aparece "¡Clic derecho!". Con clic derecho sale una **descarga de núcleo**:
+- un orbe grande en la dirección del arma, a 10 px por paso y con 700 px de alcance;
+- hace **5 de daño** (un pulso hace 1) y **destruye los proyectiles hostiles** que toca;
+- vacía la carga, y no suma carga por sí misma;
+- no cuenta para el máximo de 2 pulsos, y solo puede haber una descarga a la vez.
+
+No se puede usar en menús, en pausa, al terminar el combate ni durante la transición de fase (el jefe no recibe daño ahí); la carga se conserva para después. Cada combate y cada reintento empiezan con la carga en 0.
+
 Reglas comunes:
+- En el descanso entre ataques, los jefes de suelo (Centinela y Embestidor) **no se acercan a NEXO-7 a menos de 160 px**, y si están más cerca se alejan. Así solo hacen daño con ataques avisados, o si NEXO-7 camina hacia ellos.
 - Cada jefe tiene dos fases. Agotar la primera barra inicia una **transición única de 1,5 s**: se borran los proyectiles hostiles, nadie recibe daño y aparece "Fase 2: …" con el nombre de la nueva fase.
 - La segunda barra se carga **una sola vez**, y agotarla da la victoria.
 - Los disparos dirigidos no persiguen a NEXO-7.
@@ -886,6 +898,24 @@ Prioriza primero un combate completo que funcione; después incorpora los otros 
 | Pantallas | Inicio, pausa, victoria, derrota | Menú, selección, detalle, combate, pausa, victoria, derrota y campaña completada |
 | Lógica de jefe | Una clase con todo | `JefeBase` (común) + un módulo por jefe (lo propio) |
 
+
+### Pedido 8: corrección del Embestidor y superataque (después de jugar)
+
+Después de probar la versión 7 en su computadora, el estudiante escribió dos pedidos en lenguaje natural, sin la estructura de los prompts anteriores:
+
+> "Hay un problema con la habilidad del segundo jefe que son imposibles prácticamente de evadir porque al momento de que salta salta demasiado, entonces sería de ajustar ese ataque para que sea posible evitarlo."
+
+> "Sigue con el mismo problema. […] Además de eso, creo yo que debería de haber un superataque con el clic derecho que se cargue después de cierta cantidad de ataques acertados."
+
+**Qué se pidió:** que el ataque del segundo jefe se pudiera esquivar, y un superataque con clic derecho que se cargue acertando ataques.
+
+**Cómo se trabajó:** el pedido describía una sensación ("imposible de evadir"), no una causa, así que antes de cambiar nada se **midió**:
+1. El margen para presionar Espacio era de 0,12 s saltando quieto, y de 0 saltando alejándose. Eso llevó al ajuste 17.
+2. Como el problema siguió, se clasificó cada golpe según lo que hacía el jefe en ese momento. Así apareció la causa real: la patrulla del descanso, que atropellaba sin aviso (ajuste 18).
+
+Para el superataque, se fijaron números concretos (10 aciertos, 5 de daño) y reglas para los casos límite (menús, pausa, transición, reintento).
+
+
 ---
 
 ## Cómo funciona (resumen técnico)
@@ -997,7 +1027,7 @@ Prioriza primero un combate completo que funcione; después incorpora los otros 
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
 
-**Versión 7: 144 de 144 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Las pruebas recorren la lista `JEFES`, así que las reglas comunes se verificaron en los tres jefes:
+**Versión 7: 167 de 167 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Las pruebas recorren la lista `JEFES`, así que las reglas comunes se verificaron en los tres jefes:
 
 | Grupo | Qué se comprobó | Resultado |
 |---|---|---|
@@ -1010,6 +1040,8 @@ Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa
 | Centinela | Siempre en el suelo, patrulla a ≤ 2 px por paso; en la fase 2 dispara más seguido y la ráfaga doble lanza 6 | ✅ |
 | Embestidor | La embestida recorre 320 px y se detiene donde marcó el aviso; quieto en la zona recibe la embestida; salir de la zona caminando (0,88 s de margen), saltar alejándose (1,03 s), saltar quieto (0,22 s) y saltar pegado a la pared (0,37 s) evitan el daño, también en la fase 2; abanico: quieto de pie recibe daño, agachándose después del disparo no; fase 2: embestida → aviso de 40 pasos → ráfaga | ✅ |
 | Serafín | Vuela entre posiciones altas y bajas sin salir de la arena; en cada descanso baja a 435 px; desde el suelo, sin saltar, le acierta en la ventana baja; en la posición alta central se le alcanza desde la plataforma con salto y propulsor; abanico descendente con daño en unos lugares y espacios seguros entre rayos | ✅ |
+| Patrulla | Con el robot quieto en 5 posiciones, el Centinela y el Embestidor nunca lo atropellan en el descanso ni se le acercan a menos de 160 px | ✅ |
+| Superataque | Empieza sin carga; sin carga el clic derecho no hace nada; 10 aciertos lo cargan; lanza una sola descarga y vacía la carga; no ocupa el lugar de los 2 pulsos; hace 5 de daño y no suma carga; destruye proyectiles hostiles; no se usa en menús, pausa, fin de combate ni en la transición (la carga se conserva); Reintentar la pone en 0; con 3 de vida en la fase 1 inicia la transición; en la fase 2 puede dar la victoria | ✅ |
 | Combates completos | Un jugador automático, que en cada paso simula 7 acciones durante 30 pasos y elige la que no choca, vence al Centinela (19 s, terminó con 3 corazones), al Embestidor (31 s, con 4) y al Serafín (122 s, con 4). **Nunca usa el propulsor**: el combate no exige volar | ✅ |
 
 También se ejecutó `main.py` con clics simulados (menú → selección → detalle → combate → pausa → Salir), sin errores.
@@ -1191,6 +1223,7 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 15. **(Versión 7) Nombres de patrones repetidos:** el Centinela y el Serafín tenían ambos una "ráfaga dirigida", y el Embestidor y el Serafín un "doble abanico". Se comportan distinto, pero los nombres confundían. **Ajuste:** los del Serafín se llaman "descarga aérea" y "lluvia doble".
 16. **(Versión 7) Lo que las pruebas enseñaron sobre los abanicos dirigidos:** el abanico del Embestidor apunta al pecho de NEXO-7 en el momento del disparo, así que agacharse antes no sirve. La forma correcta es estar de pie cuando dispara y agacharse cuando llega. Se documentó en el detalle del jefe ("abanico hacia ti con espacios").
 17. **(Versión 7) Embestida prácticamente imposible de esquivar (encontrado al jugar):** al probar el juego en la Mac, el estudiante reportó que la embestida del Embestidor no se podía evitar. Al medirlo se confirmó: cruzaba la arena de pared a pared, saltando quieto había solo 0,12 s para acertar el salto, y saltar alejándose (lo instintivo) era imposible. **Ajuste:** la embestida recorre una distancia fija (320 px; 400 en la fase 2) que el aviso marca en el suelo, y el jefe es más bajo y angosto (56 × 84 px). Ahora se puede salir de la zona durante el aviso (0,88 s de margen) o saltar alejándose (1,03 s). El jugador automático pasó de terminar con 1 corazón a no perder ninguno.
+18. **(Versión 7) El Embestidor seguía golpeando "sin aviso" (encontrado al jugar):** después del ajuste 17, el estudiante reportó que seguía igual. Se simuló a un jugador que solo sale de la franja y se agacha ante el abanico, y se clasificó cada golpe según lo que hacía el jefe en ese momento. La mayoría llegaba **en el descanso**: entre ataques, el jefe patrullaba toda la arena a 3 px por paso y pasaba por encima del robot sin ningún aviso. **Ajuste:** en el descanso, los jefes de suelo mantienen 160 px de distancia y se alejan si están más cerca. Con la misma estrategia simple, los golpes en 30 s bajaron de 8–15 a 0–3 (los restantes son del abanico muy cerca del jefe).
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -1288,6 +1321,10 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 74. Vencer al Serafín: aparece "¡Campaña completada!".
 75. Pausar en cada jefe: todo se congela. Probar Continuar, Reintentar, Selección de jefe y Salir.
 76. Hacer clic en Combatir, Continuar o Reintentar y mantener el botón: no sale ningún disparo hasta soltar.
+77. Embestidor: quedarse lejos de él entre ataques; ya no debería acercarse hasta tocarte sin una franja o un "!" antes.
+78. Acertar 10 pulsos al jefe: la barra Súper se llena, brilla, y el pecho de NEXO-7 se pone amarillo.
+79. Clic derecho: sale el orbe grande, borra los proyectiles que toca y le quita 5 al jefe; la barra vuelve a 0.
+80. Clic derecho con la carga llena durante la transición o en pausa: no pasa nada y la carga se conserva.
 
 ### Limitaciones conocidas
 
@@ -1319,7 +1356,8 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 7)** El abanico descendente del Serafín tiene huecos de unos 35 px entre rayos al llegar al suelo. Alejarse a más de ~220 px de su vertical es más seguro que buscar el hueco.
 - **(Versión 7)** El progreso se guarda junto al código (`progreso.json`). Si la carpeta es de solo lectura, el juego sigue funcionando, pero avisa que no pudo guardar.
 - **(Versión 7)** `requirements.txt` pide `pygame-ce` (antes pedía `pygame`, que no se instalaba en Python 3.14). Todas las pruebas se ejecutaron también con pygame 2.6.1, así que el código funciona con los dos.
-- **Pendiente:** jugar los tres jefes con ventana, teclado y ratón reales (pruebas manuales 66 a 76). Sobre todo, falta comprobar que la curva de dificultad sea justa para una persona.
+- **(Versión 7)** El superataque hace que cada 10 aciertos el daño total suba en 5 (un 50 % más). Los combates pueden sentirse más cortos que antes.
+- **Pendiente:** jugar los tres jefes con ventana, teclado y ratón reales (pruebas manuales 66 a 80), sobre todo comprobar en la Mac que el Embestidor ya se siente justo. Sobre todo, falta comprobar que la curva de dificultad sea justa para una persona.
 
 ## Reflexión final
 
