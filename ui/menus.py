@@ -57,19 +57,21 @@ def dibujar_botones(pantalla, fuentes, botones, pos_raton):
         boton.dibujar(pantalla, fuentes["normal"], pos_raton)
 
 
-def dibujar_inicio(pantalla, fuentes):
-    theme.dibujar_fondo_nivel(pantalla, 0)
+def dibujar_inicio(pantalla, fuentes, fondos):
+    theme.dibujar_fondo_nivel(pantalla, fondos, 0)
     titulo = fuentes["titulo"].render("RoboAventura", True, theme.TEXTO)
-    pantalla.blit(titulo, titulo.get_rect(center=(c.ANCHO_VENTANA // 2, 110)))
+    pantalla.blit(titulo, titulo.get_rect(center=(c.ANCHO_VENTANA // 2, 90)))
+    subtitulo = fuentes["normal"].render(f"{c.NOMBRE_ROBOT} en la estación abandonada", True, theme.PULSO)
+    pantalla.blit(subtitulo, subtitulo.get_rect(center=(c.ANCHO_VENTANA // 2, 150)))
     controles = [
         "A / D o flechas: moverse      Espacio: saltar",
         "S o flecha abajo: agacharse",
         "Shift en el aire: propulsor",
-        "Ratón: apuntar      Clic izquierdo: disparar",
+        "Ratón: apuntar (360° en el aire)      Clic izquierdo: disparar",
     ]
     for i, linea in enumerate(controles):
         texto = fuentes["normal"].render(linea, True, theme.TEXTO)
-        pantalla.blit(texto, texto.get_rect(center=(c.ANCHO_VENTANA // 2, 200 + i * 40)))
+        pantalla.blit(texto, texto.get_rect(center=(c.ANCHO_VENTANA // 2, 215 + i * 40)))
 
 
 def dibujar_mensaje(pantalla, fuentes, capa_oscura, titulo, detalle):

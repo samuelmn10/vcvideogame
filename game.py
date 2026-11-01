@@ -12,13 +12,17 @@ from world import level, theme
 
 
 class Juego:
-    """Guarda el estado de la partida. Cada entidad guarda sus propios datos:
-    el robot su salud, postura y energía; el jefe su vida y fase."""
+    """Guarda el estado de la partida (pantalla, escena, listas del mundo y cámara).
+
+    Cada entidad guarda sus propios datos para no duplicarlos: el robot su salud,
+    postura, energía y espera de disparo; el jefe su vida, fase y patrones.
+    """
 
     def __init__(self):
         # Recursos que se crean una sola vez
         self.fuentes = theme.crear_fuentes()
         self.capa_oscura = theme.crear_capa_oscura()
+        self.fondos = theme.crear_fondos()
         self.botones = menus.crear_botones()
         self.reiniciar()
         self.estado = c.INICIO  # al abrir el juego se ve la pantalla inicial
@@ -33,8 +37,8 @@ class Juego:
         self.posicion_segura = self.robot.rect.bottomleft  # pies en el último lugar seguro
         self.enemigos = level.crear_enemigos()
         self.baterias = level.crear_baterias()
-        self.pulsos = []        # proyectiles de NEXO-7
-        self.proyectiles = []   # proyectiles del jefe
+        self.pulsos = []        # proyectiles de NEXO-7 (aliados)
+        self.proyectiles = []   # proyectiles del jefe (hostiles)
         self.jefe = None
         self.contador = 0
         self.esperar_soltar_clic = False  # True: hay que soltar el clic antes de disparar
@@ -125,8 +129,9 @@ class Juego:
             if enemigo:
                 self.enemigos.remove(enemigo)  # cada pulso elimina a un solo enemigo
                 self.pulsos.remove(pulso)
-            elif self.jefe and pulso.rect.colliderect(self.jefe.rect):
-                self.jefe.recibir_impacto()
+            elif self.jefe and self.jefe.puede_recibir_danio() and pulso.rect.colliderect(self.jefe.rect):
+                # Cada impacto resta un punto (durante la transición los pulsos lo atraviesan)
+                self.jefe.recibir_impacto(pulso.danio)
                 self.pulsos.remove(pulso)
             elif pulso.debe_desaparecer(self.ancho_mundo()) or collisions.toca_alguno(pulso.rect, self.solidos):
                 self.pulsos.remove(pulso)
@@ -155,7 +160,7 @@ class Juego:
 
         if self.robot.vidas <= 0:
             self.estado = c.DERROTA
-            self.motivo_derrota = "Te quedaste sin corazones"
+            self.motivo_derrota = f"{c.NOMBRE_ROBOT} se quedó sin corazones"
         elif self.robot.rect.colliderect(self.portal):
             self.entrar_arena()
         else:
@@ -164,6 +169,9 @@ class Juego:
     def actualizar_arena(self):
         self.jefe.actualizar(self.robot, self.proyectiles)
         self.actualizar_pulsos()
+        # Durante la transición a la fase 2 no hay proyectiles hostiles ni daño
+        if self.jefe.en_transicion():
+            self.proyectiles.clear()
 
         for proyectil in self.proyectiles[:]:
             proyectil.actualizar()
@@ -184,7 +192,7 @@ class Juego:
             self.pulsos = []
         elif self.robot.vidas <= 0:
             self.estado = c.DERROTA
-            self.motivo_derrota = f"{c.NOMBRE_JEFE} te venció"
+            self.motivo_derrota = f"El {c.NOMBRE_JEFE} venció a {c.NOMBRE_ROBOT}"
 
     def actualizar_camara(self):
         # Centra al robot, pero sin mostrar nada fuera del nivel
@@ -194,13 +202,13 @@ class Juego:
     # ----- Dibujo -----------------------------------------------------------
     def dibujar(self, pantalla, pos_raton=(-1, -1)):
         if self.estado == c.INICIO:
-            menus.dibujar_inicio(pantalla, self.fuentes)
+            menus.dibujar_inicio(pantalla, self.fuentes, self.fondos)
         else:
             self.dibujar_partida(pantalla)
             if self.estado == c.PAUSA:
                 menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Pausa", "El juego está detenido")
             elif self.estado == c.VICTORIA:
-                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, f"¡Derrotaste a {c.NOMBRE_JEFE}!",
+                menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, f"¡{c.NOMBRE_ROBOT} apagó al Centinela!",
                                       f"Baterías recogidas: {self.contador} de {len(self.baterias)}")
             elif self.estado == c.DERROTA:
                 menus.dibujar_mensaje(pantalla, self.fuentes, self.capa_oscura, "Fin de la partida", self.motivo_derrota)
@@ -210,9 +218,9 @@ class Juego:
 
     def dibujar_partida(self, pantalla):
         if self.escena == c.NIVEL:
-            theme.dibujar_fondo_nivel(pantalla, self.camara_x)
+            theme.dibujar_fondo_nivel(pantalla, self.fondos, self.camara_x)
         else:
-            theme.dibujar_fondo_arena(pantalla)
+            theme.dibujar_fondo_arena(pantalla, self.fondos)
         for solido in self.solidos:
             theme.dibujar_solido(pantalla, solido.move(-self.camara_x, 0))
         if self.escena == c.NIVEL:
@@ -234,16 +242,16 @@ class Juego:
         hud.dibujar_hud(pantalla, self.fuentes, self.robot, self.contador, len(self.baterias), self.puede_atacar())
         if self.jefe:
             hud.dibujar_barra_jefe(pantalla, self.fuentes, self.jefe)
-            # Anuncio breve del cambio de fase (oculto bajo los menús)
-            if self.jefe.anuncio_fase > 0 and self.estado == c.JUGANDO:
-                hud.dibujar_anuncio_fase(pantalla, self.fuentes, "FASE 2")
+            # Anuncio de la transición (oculto bajo los menús)
+            if self.jefe.en_transicion() and self.estado == c.JUGANDO:
+                hud.dibujar_anuncio_fase(pantalla, self.fuentes, "Fase 2: Sobrecarga")
 
 
 def ejecutar():
     """Bucle principal con paso fijo: el juego avanza igual a cualquier FPS."""
     pygame.init()
     pantalla = pygame.display.set_mode((c.ANCHO_VENTANA, c.ALTO_VENTANA))
-    pygame.display.set_caption("RoboAventura")
+    pygame.display.set_caption(f"RoboAventura: {c.NOMBRE_ROBOT}")
     reloj = pygame.time.Clock()
     juego = Juego()
 

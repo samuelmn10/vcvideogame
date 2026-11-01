@@ -1,10 +1,10 @@
-# RoboAventura
+# RoboAventura: NEXO-7
 
 Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
 
-Un robot recorre un nivel de plataformas recogiendo baterías y esquivando o eliminando enemigos con un pulso de energía. El portal del final lo lleva a una arena donde debe vencer al jefe **VOLTARÓN**. Tiene tres corazones. El juego se maneja con menús de botones: inicio, pausa y fin de partida. El robot apunta con el ratón, se agacha para esquivar y tiene un propulsor para vuelos cortos.
+**NEXO-7**, un robot explorador, recorre una **estación tecnológica abandonada** recogiendo baterías y enfrentando drones de seguridad. Al final, una compuerta lo lleva a la cámara del núcleo de energía, donde lo espera el **Centinela Eclipse**, el sistema de defensa de la estación, con dos fases. NEXO-7 tiene tres corazones; apunta y dispara con el ratón, se agacha para esquivar y tiene un propulsor breve.
 
-## Cómo ejecutarlo
+## Instalación y ejecución
 
 Requisitos: Python 3.10 o superior.
 
@@ -24,17 +24,122 @@ python main.py
 
 ## Controles
 
-| Tecla | Acción |
+| Control | Acción |
 |---|---|
 | A / D o flechas ← → | Moverse |
 | Espacio | Saltar |
 | S o flecha abajo (en el suelo) | Agacharse (mitad de altura, más lento) |
-| Shift (en el aire) | Propulsor: vuelo corto de hasta 2 s, se recarga en 1,5 s en el suelo |
-| Ratón | Apuntar (de −60° a +60° hacia cada lado) |
+| Shift (en el aire) | Propulsor: hasta 0,8 s de uso; se recarga en 1,5 s apoyado |
+| Ratón | Apuntar: ±60° en el suelo, 360° en el aire |
 | Clic izquierdo (se puede mantener) | Disparar pulsos (uno cada 0,3 s, máximo 2 en pantalla) |
-| Clic izquierdo en los menús | Botones: Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
+| Clic izquierdo en los menús | Iniciar, Pausa, Continuar, Reiniciar, Volver a jugar y Salir |
 
-Desde la versión 4, R y Escape ya no se usan, y desde la versión 5 tampoco J: se dispara con el ratón. La ventana también se puede cerrar con su botón de cierre.
+R, Escape y J ya no se usan. La ventana también se puede cerrar con su botón de cierre.
+
+## Estructura del proyecto
+
+```
+main.py               Punto de entrada: solo llama a game.ejecutar()
+config.py             Parámetros ajustables: dimensiones, controles, física, vidas, ataque y jefe
+game.py               Clase Juego (estados, escenas, actualización y dibujo) y bucle principal de paso fijo
+entities/
+  robot.py            NEXO-7: salud, invulnerabilidad, postura, propulsor, apuntado y disparo
+  enemies.py          Enemigos comunes (EnemigoPatrulla)
+  boss.py             Centinela Eclipse: vida, movimiento, fases y patrones
+  projectiles.py      Proyectil: movimiento, alcance, daño y cuándo desaparece (aliado u hostil)
+systems/
+  movement.py         Desplazamiento horizontal, gravedad, salto y propulsión
+  collisions.py       Resolución de choques horizontales y verticales, límites y espacio libre
+world/
+  level.py            Suelo, plataformas, baterías, zonas de enemigos, portal y arena
+  theme.py            Ambientación: colores, fuentes, fondos, suelo, plataformas y compuerta
+ui/
+  menus.py            Botones y pantallas de inicio, pausa, victoria y derrota
+  hud.py              Corazones, baterías, energía, ataque, fase y vida del jefe, y mira
+requirements.txt
+README.md
+```
+
+**Dependencias, sin ciclos:** `config` y `world/theme` no importan nada del juego. `systems/` usa solo `config`. `entities/` usa `config`, `systems` y `theme`. `world/level` crea enemigos. `ui/` usa `config` y `theme`. `game.py` reúne todo, y `main.py` solo importa `game`.
+
+**Recursos que se crean una sola vez** (en `Juego.__init__`): las fuentes, la capa oscura de los menús, los botones y los fondos de la estación y de la arena, que se dibujan una vez sobre una superficie y después solo se copian en cada cuadro.
+
+**NPCs:** el juego no tiene personajes no jugables. Si se agregan más adelante, su comportamiento iría en `entities/npcs.py` (con `actualizar()` y `dibujar()` como los enemigos), su ubicación en `world/level.py` y sus diálogos en `ui/`.
+
+## Modelo de funcionamiento
+
+**Estados del juego** (`Juego.estado`):
+
+```
+INICIO --Iniciar--> JUGANDO <--Pausa/Continuar--> PAUSA
+                       |                            |
+                       |                       Reiniciar --> JUGANDO (aventura nueva)
+                       +--> VICTORIA / DERROTA --Volver a jugar--> JUGANDO (aventura nueva)
+Salir (en cualquier menú) cierra el juego.
+```
+
+**Escenas** (`Juego.escena`): `nivel` → (al tocar el portal, una sola vez) → `arena`.
+
+**Quién guarda cada dato** (sin duplicados):
+
+| Dueño | Datos |
+|---|---|
+| `Juego` | estado, escena, sólidos, portal, enemigos, baterías y contador, pulsos (aliados), proyectiles (hostiles), jefe, cámara, posición segura, "esperar a soltar el clic" |
+| `Robot` | rectángulo, velocidad vertical, apoyo, agachado, volando, energía, dirección y ángulo del arma, vidas, invulnerabilidad, espera de disparo |
+| `Jefe` | posición, dirección, fase, vida y vida máxima, transición, estado (aviso, ataque o descanso), temporizador, patrón, emisiones, objetivo de la ráfaga corta |
+| `Proyectil` | posición, dirección unitaria, velocidad, aliado u hostil, alcance, recorrido, daño |
+
+**Fases del jefe:**
+
+```
+FASE 1 (40 de vida) --vida llega a 0--> TRANSICIÓN (1,5 s) --> FASE 2 (60 de vida) --vida llega a 0--> VICTORIA
+  descanso 1,2 s -> aviso 0,75 s -> ráfaga | bajos        sin ataques ni daño;        descanso 0,8 s -> aviso 0,6 s -> abanico | ráfagas cortas
+                                                          se borran los proyectiles     velocidad +25 %
+```
+
+La recarga a 60 ocurre solo en `terminar_transicion()`, y a la transición solo se entra desde la fase 1. Por eso no puede repetirse.
+
+## Ambientación y dificultad
+
+**Estación abandonada** (todo en `world/theme.py`):
+- **Fondo:** módulos lejanos con ventanas encendidas o apagadas, vigas y cables. Se mueve a la mitad de velocidad que la cámara, para dar profundidad.
+- **Superficies:** suelo de placas metálicas con juntas, y plataformas de chapa con remaches. Ambos tienen una franja de luz cian arriba.
+- **Arena:** la cámara del núcleo de energía, con el núcleo apagado detrás del jefe. La compuerta del nivel lleva hacia ahí.
+- **Colores que distinguen a cada uno:**
+  - NEXO-7: blanco con detalles cian;
+  - drones enemigos: rojo;
+  - pulsos aliados: cian;
+  - proyectiles hostiles: magenta (dirigidos) y naranja (bajos);
+  - Centinela Eclipse: índigo con un ojo de eclipse; en la fase 2, rojo con rejillas brillantes.
+
+**Parámetros de dificultad** (todos en `config.py`):
+
+| Parámetro | Valor |
+|---|---|
+| Corazones / invulnerabilidad | 3 / 1,2 s |
+| Pulso | cada 0,3 s, alcance 350 px, máximo 2, 8 px por paso |
+| Propulsor | 0,8 s de uso, recarga en 1,5 s apoyado, subida máxima 6 px por paso |
+| Jefe, fase 1 | 40 de vida, velocidad 2, aviso 0,75 s, descanso 1,2 s |
+| Jefe, fase 2 | 60 de vida, velocidad 2,5 (+25 %), aviso 0,6 s, descanso 0,8 s |
+| Transición | 1,5 s |
+| Abanico | 5 proyectiles a 0°, 15°, 30°, 45° y 60° sobre la horizontal |
+| Ráfagas cortas | 3 ráfagas de 3 disparos (6 pasos entre disparos, 36 entre ráfagas) |
+| Proyectiles hostiles | velocidad 5, máximo 12 activos (si no hay lugar, la emisión espera) |
+
+## Dónde modificar cada cosa
+
+| Quiero cambiar… | Archivo |
+|---|---|
+| Velocidades, salto, propulsor, vidas, ataque, tiempos y vida del jefe | `config.py` |
+| Controles (teclas) | `config.py` (sección Controles) |
+| Cómo se mueve o vuela NEXO-7 | `systems/movement.py` y `entities/robot.py` (`actualizar`) |
+| Cómo apunta o dispara | `entities/robot.py` (`apuntar`, `disparar`) |
+| Enemigos comunes (o agregar un tipo nuevo) | `entities/enemies.py`, y su ubicación en `world/level.py` |
+| Fases y patrones del jefe | `entities/boss.py` (`emitir`, `espera_tras_emision`, `PATRONES`) |
+| Plataformas, baterías, portal y arena | `world/level.py` |
+| Colores, fondos y aspecto general | `world/theme.py` (más el `dibujar()` de cada entidad) |
+| Botones y textos de los menús | `ui/menus.py` |
+| Información en pantalla | `ui/hud.py` |
 
 ---
 
@@ -485,6 +590,162 @@ Prioriza controles fluidos y predecibles, con movimiento independiente de la vel
 | Ráfaga del jefe | Apuntaba al centro del robot | Apunta al pecho (borde superior + 10 px), para que agacharse sirva para esquivarla |
 | Bucle principal | Una actualización por cuadro | Paso fijo de 1/60 s: misma velocidad a cualquier FPS |
 
+
+### Prompt 6: arquitectura modular, NEXO-7 y Centinela Eclipse
+
+**Qué se pidió a la IA:**
+- Pasar de un único `main.py` a **módulos con responsabilidades claras**, sin datos duplicados ni dependencias circulares.
+- Cambiar la identidad a **NEXO-7** en una estación abandonada.
+- Acortar el propulsor a **0,8 s**.
+- Permitir apuntar en **360° en el aire**.
+- Convertir al jefe en el **Centinela Eclipse**: fase 1 con 40 de vida, una transición única y fase 2 con 60 de vida y dos patrones nuevos.
+
+**Por qué se refinó el prompt así:**
+- Se dijo de forma explícita que esta solicitud **autoriza** reemplazar el archivo único y cambiar límites anteriores (propulsor, apuntado y vida del jefe). Así la IA no queda dividida entre reglas viejas y nuevas.
+- Se pidió **primero reorganizar sin cambiar el comportamiento y después cambiar la jugabilidad**. Por eso hay dos commits: la reorganización se verificó con las 136 pruebas de la versión 5 antes de tocar el combate.
+- Se pidió definir **quién guarda cada dato** y evitar crear recursos en cada cuadro. Son los errores típicos al separar un programa en archivos.
+- Para el jefe se fijaron reglas para casos límite que suelen fallar:
+  - la recarga de vida ocurre **una sola vez**;
+  - durante la transición se suspende el daño de **ambos**;
+  - cuando hay 12 proyectiles, la emisión **espera** en lugar de perderse.
+- Se pidió **no inventar NPCs**, solo explicar dónde irían.
+
+<details>
+<summary>Texto completo del prompt 6</summary>
+
+```
+ROL
+Actúa como desarrollador de videojuegos en Python y tutor. Ayúdame a mejorar la arquitectura y la jugabilidad del proyecto existente, manteniendo un código comprensible para un estudiante.
+CONTEXTO
+Estoy desarrollando RoboAventura con Pygame. Actualmente tiene plataformas, enemigos, botones de menú, tres corazones, apuntado con mouse, disparo con clic, postura agachada, propulsor y una batalla contra un jefe.
+Quiero reorganizar el código en módulos y mejorar el combate. Esta solicitud autoriza reemplazar la estructura de un único archivo y modificar los límites anteriores del propulsor, el apuntado y la vida del jefe.
+OBJETIVO
+Transforma el proyecto en una versión modular protagonizada por NEXO-7, un robot explorador que recorre una estación tecnológica abandonada y se enfrenta al "Centinela Eclipse", su sistema de defensa.
+1. ESTRUCTURA MODULAR
+Utiliza esta organización como referencia:
+main.py
+config.py
+game.py
+entities/
+robot.py
+enemies.py
+boss.py
+projectiles.py
+systems/
+movement.py
+collisions.py
+world/
+level.py
+theme.py
+ui/
+menus.py
+hud.py
+requirements.txt
+README.md
+Responsabilidades:
+* main.py: inicializar y ejecutar el juego. Debe ser un punto de entrada pequeño.
+* config.py: controles, dimensiones y parámetros ajustables de dificultad.
+* game.py: coordinar el bucle principal y los estados de menú, nivel, arena, pausa, victoria y derrota.
+* robot.py: estado y acciones específicas de NEXO-7, como salud, postura, energía y ataque.
+* enemies.py: comportamiento de los enemigos comunes. Separa sus tipos mediante funciones o clases sencillas cuando lo necesiten.
+* boss.py: vida, movimiento, fases y patrones del jefe.
+* projectiles.py: movimiento, alcance, daño y eliminación de proyectiles.
+* movement.py: cálculos de desplazamiento, gravedad, salto y propulsión.
+* collisions.py: detección y resolución de colisiones compartidas.
+* level.py: distribución del escenario, plataformas, enemigos y portal.
+* theme.py: colores, fondos y características visuales de la ambientación.
+* menus.py: botones e interacción de los menús.
+* hud.py: corazones, energía, fase y barra de vida del jefe.
+Usa funciones, módulos y clases sencillas cuando ayuden. No impongas herencia compleja ni patrones avanzados.
+Define con claridad quién guarda cada estado para evitar datos duplicados. Evita dependencias circulares y la creación repetida de recursos en cada fotograma.
+Si ya existen NPCs, separa su comportamiento en entities/npcs.py. Si no existen, explica dónde se incorporarían posteriormente, sin inventar personajes, diálogos o misiones en esta iteración.
+2. IDENTIDAD Y AMBIENTACIÓN
+* Cambia el nombre del personaje a NEXO-7 en la interfaz y la documentación.
+* Mantén una ambientación coherente de estación tecnológica abandonada, con plataformas metálicas, baterías y un núcleo de energía.
+* Distingue visualmente al jugador, enemigos, proyectiles aliados y proyectiles hostiles.
+* Utiliza figuras geométricas originales y recursos generados con Pygame.
+* Centraliza las decisiones visuales para poder cambiar la ambientación sin modificar la lógica del combate.
+3. PROPULSOR BREVE
+* Reduce su capacidad de dos segundos a 0,8 segundos de uso continuo.
+* Permite activarlo con Shift mientras el personaje esté en el aire.
+* Conserva el salto normal.
+* Al soltar Shift o agotarse la energía, aplica nuevamente la gravedad normal.
+* Recarga completamente la energía en 1,5 segundos de contacto continuo con suelo o plataformas.
+* No recargues energía en el aire.
+* Conserva la barra de energía y las colisiones con techos y plataformas.
+* Debe servir para corregir saltos y esquivar, sin permitir vuelo permanente.
+4. APUNTADO Y DISPARO EN EL AIRE
+* Conserva el apuntado vectorial con el mouse y el disparo con clic izquierdo.
+* En el suelo, conserva el rango de ±60° respecto a la horizontal del lado al que se apunta.
+* Mientras NEXO-7 esté en el aire, permite apuntar en 360°, incluso hacia abajo.
+* Esta libertad debe mantenerse durante el salto, la caída y el uso del propulsor.
+* Permite moverse y apuntar en direcciones independientes.
+* Al aterrizar, vuelve a aplicar el límite angular del suelo.
+* La mira debe mostrar la dirección real del disparo.
+* Conserva el intervalo de 0,3 segundos, el alcance de 350 píxeles y el máximo de dos pulsos activos.
+* Mantén una velocidad constante de los proyectiles en todas las direcciones.
+* No permitas que los clics sobre botones produzcan disparos.
+5. JEFE CON DOS FASES COMPLETAS
+Primera fase:
+* El Centinela Eclipse comienza con 40 puntos de vida.
+* Alterna ráfagas dirigidas hacia posiciones concretas del jugador y proyectiles bajos que puedan saltarse.
+* Incluye avisos visuales de al menos 0,6 segundos y descansos de 1,2 segundos entre patrones.
+Transición:
+* Al agotar los 40 puntos, inicia una transición única de 1,5 segundos.
+* Limpia los proyectiles hostiles y muestra "Fase 2: Sobrecarga".
+* Durante la transición, suspende los ataques y el daño de ambos personajes, pero permite que el jugador se reposicione.
+* Cambia la apariencia del jefe y recarga su barra con un nuevo máximo de 60 puntos.
+* Esta recarga ocurre una sola vez. No es regeneración continua ni debe repetirse al recibir daño.
+Segunda fase:
+* Aumenta un 25 % la velocidad de movimiento del jefe.
+* Reduce los descansos entre patrones a 0,8 segundos.
+* Alterna dos patrones diferentes de los anteriores:
+a. Abanico de cinco proyectiles con separaciones que permitan esquivarlos.
+b. Tres ráfagas cortas dirigidas hacia la posición del jugador al comenzar cada ráfaga.
+* Los proyectiles dirigidos no deben perseguir al jugador después de lanzarse.
+* Conserva avisos visuales de al menos 0,5 segundos.
+* Ajusta los ataques para que puedan esquivarse tanto desde el suelo como utilizando el propulsor.
+* Al agotar los 60 puntos de esta fase, termina el combate con victoria.
+Muestra siempre la fase actual y la vida correspondiente. Cada impacto del jugador resta un punto. Mantén un máximo de doce proyectiles hostiles activos y retrasa nuevas emisiones si se alcanza ese límite.
+6. REGLAS QUE DEBEN CONSERVARSE
+* Tres corazones e invulnerabilidad de 1,2 segundos después de recibir daño.
+* Agacharse con una zona de colisión reducida.
+* Menús y botones para iniciar, pausar, continuar, reiniciar y salir.
+* Portal que conduce a la arena y recupera los corazones una sola vez al entrar.
+* Pausa que congela todos los movimientos y temporizadores.
+* Reinicio completo del nivel, vida, energía, jefe, fases y proyectiles.
+* Un nivel, una arena y un jefe. No agregues armas, inventarios, multijugador ni dependencias.
+7. DOCUMENTACIÓN Y ENTREGA
+Antes del código, presenta brevemente:
+* El árbol definitivo de archivos y sus responsabilidades.
+* El modelo de funcionamiento: estados del juego, datos de cada entidad y transiciones entre fases.
+* Las especificaciones de ambientación y los parámetros de dificultad elegidos.
+Después:
+* Entrega todos los archivos necesarios completos, identificados por su ruta.
+* Actualiza el README con instalación, ejecución, controles y explicación de la estructura.
+* Indica dónde modificar posteriormente movilidad, enemigos, jefe y ambientación.
+* Verifica que el proyecto se ejecute desde main.py sin errores de importación.
+* Comprueba especialmente el reinicio de fases, la recarga única del jefe y el cambio de apuntado al despegar y aterrizar.
+* Distingue las pruebas ejecutadas de las pendientes y documenta las limitaciones reales.
+Realiza la reorganización conservando el comportamiento existente, y después incorpora los cambios de jugabilidad. Evita reescribir funciones que ya funcionan si no es necesario.
+```
+
+</details>
+
+**Cambios respecto a la versión 5:**
+
+| Elemento | Versión 5 | Versión 6 |
+|---|---|---|
+| Código | Un solo `main.py` (1109 líneas) | 13 módulos (ver "Estructura del proyecto") |
+| Protagonista | "el robot" | NEXO-7 (nombre en el HUD, el título y los mensajes) |
+| Ambientación | Ciudad nocturna | Estación abandonada y cámara del núcleo de energía |
+| Propulsor | 2 s | 0,8 s (720 unidades: gasta 15 por paso y recarga 8) |
+| Apuntado | ±60° siempre | ±60° en el suelo; 360° en el aire |
+| Jefe | VOLTARÓN, 12 de vida; fase 2 con 6 o menos | Centinela Eclipse: fase 1 con 40, transición de 1,5 s, fase 2 con 60 |
+| Patrones de la fase 2 | Los mismos de la fase 1 | Abanico de 5 y tres ráfagas cortas |
+| Límite de 12 proyectiles | El disparo se perdía | La emisión espera hasta que haya lugar |
+| Pulsos y disparos del jefe | Dos clases (`Pulso`, `Proyectil`) | Una sola clase `Proyectil` (aliado u hostil) |
+
 ---
 
 ## Cómo funciona (resumen técnico)
@@ -540,11 +801,67 @@ Prioriza controles fluidos y predecibles, con movimiento independiente de la vel
   - La energía se guarda en unidades enteras para evitar errores de redondeo: 360 en total, gasta 3 por paso (2 s) y recarga 4 por paso en el suelo (1,5 s).
 - **Independencia de los FPS (paso fijo):** el bucle mide el tiempo real con `reloj.tick()` y lo acumula. Ejecuta `actualizar()` una vez por cada 1/60 s acumulado. A 30 FPS hace 2 pasos por cuadro y a 144 FPS, a veces ninguno. Así el juego va a la misma velocidad en cualquier computadora. Hay un tope de 0,25 s para que, después de un bloqueo de la ventana, no "salte" hacia adelante.
 
+### Versión 6: módulos, propulsor breve, 360° en el aire y Centinela Eclipse
+
+- **Bucle y estados:** `game.ejecutar()` tiene el bucle de paso fijo. `Juego.actualizar()` llama a `actualizar_nivel()` o a `actualizar_arena()` según la escena.
+- **Propulsor:** la energía máxima se calcula como el mínimo común múltiplo entre los pasos de uso (48) y los de recarga (90): 720 unidades. Gasta 15 por paso en el aire con Shift y recarga 8 por paso solo si está apoyado. Si despega a mitad de la recarga, la energía queda como estaba hasta volver a apoyarse.
+- **Apuntado:** `apuntar()` revisa `en_suelo`. En el aire usa el vector normalizado `(dx, dy) / distancia`, sin límite. En el suelo aplica el límite de ±60° de antes. Como se llama en cada paso, al despegar el límite desaparece y al aterrizar vuelve en el mismo paso.
+- **Fase 1:** ráfaga (3 disparos al pecho de NEXO-7 en el momento de cada disparo) y proyectiles bajos (3, uno cada 0,75 s). Aviso de 0,75 s y descanso de 1,2 s.
+- **Transición:** al quedar en 0 en la fase 1, `recibir_impacto()` cambia la fase a `TRANSICION` (1,5 s). Mientras dura:
+  - `Juego` borra los proyectiles hostiles en cada paso;
+  - el jefe no ataca ni se mueve;
+  - los pulsos lo atraviesan sin hacerle daño y el contacto no daña a NEXO-7;
+  - NEXO-7 se puede mover.
+
+  El HUD muestra "Fase 2: Sobrecarga" y la barra se va llenando. Al terminar, `terminar_transicion()` fija la fase 2 con 60 de vida.
+- **Fase 2:** velocidad 2,5 y descanso de 0,8 s.
+  - **Abanico:** 5 proyectiles a 0°, 15°, 30°, 45° y 60° sobre la horizontal. El de 0° pasa por encima de NEXO-7 agachado; con salto y propulsor se puede pasar entre los de 0° y 15°.
+  - **Ráfagas cortas:** 3 ráfagas de 3 disparos. Al empezar cada ráfaga se fija el objetivo (el pecho de NEXO-7), y los 3 disparos van a ese punto.
+  - Los dos patrones usan aviso de 0,6 s.
+- **Límite de 12:** antes de cada emisión, el jefe revisa si caben sus proyectiles (5 para el abanico). Si no caben, no avanza y lo vuelve a intentar en el siguiente paso.
+
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
 Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 6: 176 de 176 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8.
+
+Primero se comprobó que la **reorganización en módulos no cambió nada**: las 136 pruebas de la versión 5 pasaron sin cambios de lógica, solo adaptadas a los nuevos nombres (`j.robot` en lugar de `j.jugador`, la vida guardada en el robot, una sola clase `Proyectil`). Después se cambió la jugabilidad y se agregaron estas pruebas:
+
+| Regla | Resultado |
+|---|---|
+| El propulsor dura exactamente 48 pasos (0,8 s) | ✅ |
+| No recarga en el aire; recarga completa en 90 pasos (1,5 s) apoyado | ✅ |
+| Si despega a mitad de la recarga, la energía queda como estaba | ✅ |
+| Manteniendo Shift no se vuela para siempre: aterriza solo | ✅ |
+| Shift en el suelo no despega; con propulsor se sube más que con el salto (136 px) | ✅ |
+| En el aire se apunta en 360° (cada 5°) con vector de largo 1, incluso recto hacia abajo | ✅ |
+| Cursor a −80°: en el suelo se limita a −60°; al despegar y volando se libera; al aterrizar vuelve a −60° | ✅ |
+| Disparo hacia abajo en el aire: 8 px por paso y desaparece al tocar el suelo | ✅ |
+| En el aire se mueve hacia un lado y dispara hacia el otro | ✅ |
+| El jefe empieza en la fase 1 con 40; con 1 de vida sigue en la fase 1 | ✅ |
+| Al llegar a 0: empieza la transición y se borran los proyectiles hostiles; no es victoria | ✅ |
+| La transición dura 90 pasos (1,5 s), sin daño para nadie (contacto ni pulsos); NEXO-7 se puede mover | ✅ |
+| Fase 2 con 60 / 60 | ✅ |
+| En todo el combate la vida del jefe sube una sola vez, y termina derrotado en la fase 2 | ✅ |
+| Con 0 en la fase 2: victoria; si ambos llegan a 0 a la vez, gana el jugador | ✅ |
+| Fase 2: +25 % de velocidad (100 px contra 80 en 40 pasos), aviso de 36 pasos y descanso de 48 | ✅ |
+| Fase 1: aviso de 45 pasos y descanso de 72 | ✅ |
+| La fase 2 alterna abanico y ráfagas cortas, siempre con aviso | ✅ |
+| Abanico: 5 proyectiles a 0°, 15°, 30°, 45° y 60°, con separación mínima de 80 px a 300 px de distancia | ✅ |
+| Abanico: de pie recibe 1 impacto; agachado, 0; con salto y propulsor entre los rayos, 0 | ✅ |
+| Ráfagas cortas: 3 de 3, cada una al punto donde estaba NEXO-7 al empezarla, sin perseguirlo | ✅ |
+| Ráfagas cortas: de pie recibe daño; agachándose cuando se acercan los disparos, no | ✅ |
+| Con 9 proyectiles, el abanico espera; cuando hay lugar, lanza sus 5 (12 en total) | ✅ |
+| En las dos fases nunca hay más de 12 proyectiles hostiles | ✅ |
+| Volver a jugar (tras ganar o perder) y Reiniciar en la transición: el jefe vuelve a la fase 1 con 40 y la energía se llena | ✅ |
+| La pausa congela la transición | ✅ |
+| El HUD dibuja la fase y la vida en la fase 1, en la transición y en la fase 2 | ✅ |
+| Un jugador automático que esquiva y dispara completa nivel, fase 1 y fase 2 sin perder corazones en la arena (42 s) | ✅ |
+
+También se comprobó que `python main.py` arranca y cierra sin errores de importación, y que el bucle de paso fijo da ~120 pasos cada 2 s a 30, 60 y 144 FPS.
 
 **Versión 5: 136 de 136 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Repiten las de las versiones 3 y 4 adaptadas al disparo con clic, y agregan:
 
@@ -678,6 +995,8 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 7. **(Versión 5) Energía con errores de redondeo:** al principio, la energía se guardaba en segundos y se restaba 1/60 por paso. Las pruebas mostraron que duraba 121 pasos en vez de 120 y que recargaba en 91 en vez de 90, porque 2,0 − 120 × (1/60) no da exactamente 0 en decimales. **Ajuste:** se cuenta en unidades enteras (360; gasta 3 y recarga 4 por paso).
 8. **(Versión 5) Agacharse no esquivaba la ráfaga:** la ráfaga apuntaba al centro del robot, y ese punto sigue dentro del cuerpo agachado. **Ajuste:** apunta al pecho (borde superior + 10 px). Un disparo hecho al robot de pie le pasa por encima si se agacha.
 9. **(Versión 5) Posición segura con la altura variable:** como ahora la altura del robot cambia, la posición segura se guarda por los pies (`bottomleft`). Si se guardara la esquina superior, el robot podría reaparecer metido en el suelo.
+10. **(Versión 6) Superposición en el HUD:** en una captura, "Centinela Eclipse · Fase 2 · 60/60" se encimaba con el indicador del pulso. **Ajuste:** el indicador se acortó ("Pulso: listo") y la vida del jefe pasó debajo de la barra.
+11. **(Versión 6) Reorganizar sin romper:** antes de cambiar la jugabilidad, la versión modular se probó con las 136 pruebas de la versión 5. Pasaron todas, lo que confirma que el comportamiento se conservó. Para no perder datos entre módulos, la vida, la invulnerabilidad y la espera de disparo pasaron del `Juego` al `Robot`, que es su dueño.
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -751,6 +1070,17 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 56. Pausar mientras vuela: el robot queda quieto en el aire y la barra no cambia. Al continuar, sigue igual.
 57. Perder agachado o con la energía a medias y pulsar Volver a jugar: de pie, con energía llena y 3 corazones.
 
+**NEXO-7 y Centinela Eclipse (versión 6):**
+
+58. La pantalla inicial dice "NEXO-7 en la estación abandonada", y el HUD muestra "NEXO-7" junto a los corazones.
+59. Saltar y mantener Shift: el propulsor dura menos de un segundo. En el aire la barra no se recarga; al aterrizar se llena en 1,5 s.
+60. En el aire, apuntar hacia abajo y hacia atrás: la línea amarilla sigue al cursor en cualquier dirección. Al aterrizar, vuelve a quedarse entre −60° y 60°.
+61. Bajar al Centinela de 40 a 0: aparece "Fase 2: Sobrecarga", desaparecen sus disparos, parpadea entre índigo y rojo, y la barra se llena. Durante 1,5 s no hace daño ni lo recibe, y NEXO-7 se puede mover.
+62. Fase 2: el jefe es rojo, se mueve más rápido y alterna abanico (5 líneas amarillas de aviso) y ráfagas cortas (3 puntos de aviso).
+63. Abanico: esquivarlo agachado. En otra ronda, esquivarlo saltando con propulsor entre los dos rayos más bajos.
+64. Ráfagas cortas: moverse o agacharse entre ráfagas; cada ráfaga va adonde estaba NEXO-7 cuando empezó.
+65. Vencer la fase 2: victoria. Volver a jugar y llegar otra vez a la arena: el Centinela empieza en la fase 1 con 40.
+
 ### Limitaciones conocidas
 
 - Las pruebas automáticas no reemplazan jugarlo: falta probarlo con ventana real y teclado.
@@ -770,7 +1100,12 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, los
 - **(Versión 5)** Si se mantiene S al bajar de una plataforma caminando, el robot sigue agachado en el aire (no se agacha en el aire, pero tampoco se levanta solo mientras la tecla siga presionada).
 - **(Versión 5)** Con el paso fijo, si la computadora va a menos de ~4 FPS (más de 0,25 s por cuadro), el juego se ve más lento en vez de saltar hacia adelante. Es intencional.
 - **(Versión 5)** Durante la partida se oculta el cursor del sistema y se dibuja la mira. En los menús vuelve el cursor normal.
-- **Pendiente:** jugar las versiones 2 a 5 con ventana, teclado y ratón reales (pruebas manuales 10 a 57). Sobre todo, falta sentir si el apuntado, el agacharse y el propulsor resultan cómodos.
+- **(Versión 6)** El combate dura bastante más: son 100 impactos (40 + 60). El jugador automático tardó unos 30 s en la arena; una persona tardará más.
+- **(Versión 6)** El abanico siempre sale desde la horizontal hacia arriba. Agacharse lo esquiva desde el suelo, pero si NEXO-7 vuela alto puede quedar en la trayectoria de los rayos superiores.
+- **(Versión 6)** Durante la transición, los pulsos atraviesan al jefe sin hacerle daño y no desaparecen. Se puede seguir disparando, pero no sirve.
+- **(Versión 6)** El propulsor recarga de forma proporcional al tiempo apoyado: desde vacío, 1,5 s de contacto lo llenan; si despega antes, conserva la parte recargada.
+- **(Versión 6)** Los nombres de las versiones anteriores (VOLTARÓN, "el robot") quedaron en la historia de este README a propósito, como evidencia de cada iteración.
+- **Pendiente:** jugar las versiones 2 a 6 con ventana, teclado y ratón reales (pruebas manuales 10 a 65). Sobre todo, falta sentir si el combate de dos fases es justo para una persona y si el propulsor de 0,8 s alcanza para esquivar.
 
 ## Reflexión final
 

@@ -1,4 +1,4 @@
-"""Parámetros ajustables: dimensiones, controles, física y dificultad.
+"""Parámetros ajustables de RoboAventura: dimensiones, controles, física y dificultad.
 
 Para cambiar la dificultad o los controles basta con editar este archivo.
 """
@@ -6,6 +6,9 @@ Para cambiar la dificultad o los controles basta con editar este archivo.
 import math
 
 import pygame
+
+NOMBRE_ROBOT = "NEXO-7"
+NOMBRE_JEFE = "Centinela Eclipse"
 
 # ---------------------------------------------------------------------------
 # Ventana y tiempo
@@ -37,7 +40,7 @@ VELOCIDAD_ROBOT = 5
 VELOCIDAD_AGACHADO = 3
 
 # Propulsor
-DURACION_PROPULSOR = 2.0     # segundos de uso continuo
+DURACION_PROPULSOR = 0.8     # segundos de uso continuo (antes 2,0)
 TIEMPO_RECARGA = 1.5         # segundos apoyado para recargar por completo
 EMPUJE_PROPULSOR = 2         # contrarresta la gravedad (1) y deja 1 px/paso² hacia arriba
 VELOCIDAD_SUBIDA_MAX = 6
@@ -55,7 +58,7 @@ RECARGA_PROPULSOR = ENERGIA_MAXIMA // PASOS_RECARGA
 VIDAS_MAXIMAS = 3
 INVULNERABILIDAD = 72        # 1,2 s sin recibir daño después de un golpe
 MARGEN_SEGURO = 100          # distancia mínima a los bordes para guardar una posición segura
-ANGULO_MAXIMO = 60           # grados hacia arriba o hacia abajo al apuntar
+ANGULO_MAXIMO = 60           # en el suelo: grados hacia arriba o abajo (en el aire, 360°)
 LARGO_ARMA = 20              # distancia del hombro a la boca del arma
 VELOCIDAD_PULSO = 8
 ALCANCE_PULSO = 350          # distancia máxima recorrida por un pulso
@@ -68,22 +71,30 @@ MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 VELOCIDAD_ENEMIGO = 3
 
 # ---------------------------------------------------------------------------
-# Jefe
+# Jefe: Centinela Eclipse (tiempos en pasos de 1/60 s)
 # ---------------------------------------------------------------------------
-NOMBRE_JEFE = "VOLTARÓN"
-VIDA_JEFE = 12
-VIDA_SEGUNDA_FASE = 6        # con esta vida o menos empieza la fase 2
+VIDA_FASE_1 = 40
+VIDA_FASE_2 = 60             # nuevo máximo: se recarga una sola vez, al pasar a la fase 2
 VELOCIDAD_JEFE = 2
-VELOCIDAD_JEFE_FASE_2 = 2.4  # 20 % más rápido
-DURACION_AVISO = 45          # 0,75 s de señal antes de cada ataque
-DURACION_ANUNCIO_FASE = 90   # el texto "FASE 2" se muestra 1,5 s
+VELOCIDAD_JEFE_FASE_2 = 2.5  # 25 % más rápido
 DESCANSO_INICIAL = 120       # 2 s para ubicarse al entrar a la arena
 DESCANSO_FASE_1 = 72         # 1,2 s entre patrones
 DESCANSO_FASE_2 = 48         # 0,8 s entre patrones
+AVISO_FASE_1 = 45            # 0,75 s de señal antes de cada patrón (mínimo 0,6 s)
+AVISO_FASE_2 = 36            # 0,6 s (mínimo 0,5 s)
+DURACION_TRANSICION = 90     # 1,5 s de "Fase 2: Sobrecarga" sin ataques ni daño
+VELOCIDAD_PROYECTIL = 5
+MAX_PROYECTILES = 12         # si se llega al máximo, la siguiente emisión espera
+# Fase 1
 INTERVALO_RAFAGA = 24        # pasos entre los 3 disparos de la ráfaga
 INTERVALO_BAJOS = 45         # pasos entre los 3 proyectiles bajos (~225 px de separación)
-VELOCIDAD_PROYECTIL = 5
-MAX_PROYECTILES = 12
+# Fase 2
+ANGULOS_ABANICO = (0, 15, 30, 45, 60)  # grados sobre la horizontal: agachado se esquiva el de 0°
+PAUSA_TRAS_ABANICO = 40
+DISPAROS_POR_RAFAGA_CORTA = 3
+RAFAGAS_CORTAS = 3
+INTERVALO_EN_RAFAGA_CORTA = 6    # pasos entre disparos de una misma ráfaga corta
+INTERVALO_ENTRE_RAFAGAS = 36     # pasos entre una ráfaga corta y la siguiente
 
 # ---------------------------------------------------------------------------
 # Nombres de estados y acciones (compartidos entre módulos)

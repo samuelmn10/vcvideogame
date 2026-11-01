@@ -1,4 +1,4 @@
-"""El robot del jugador: salud, postura, energía, apuntado y ataque."""
+"""NEXO-7, el robot explorador del jugador: salud, postura, energía, apuntado y ataque."""
 
 import math
 
@@ -95,11 +95,16 @@ class Robot:
         return hombro_x + dir_x * c.LARGO_ARMA, hombro_y + dir_y * c.LARGO_ARMA
 
     def apuntar(self, objetivo_x, objetivo_y):
-        """Orienta el arma hacia un punto del mundo, con el ángulo limitado a ±60°."""
+        """Orienta el arma hacia un punto del mundo.
+
+        En el suelo el ángulo se limita a ±60°; en el aire (saltando, cayendo o
+        con el propulsor) se puede apuntar en 360°, incluso hacia abajo.
+        """
         hombro_x, hombro_y = self.punto_arma()
         dx = objetivo_x - hombro_x
         dy = objetivo_y - hombro_y
-        if math.hypot(dx, dy) < 1:
+        distancia = math.hypot(dx, dy)
+        if distancia < 1:
             return  # cursor sobre el arma: se conserva la última dirección válida
         if dx != 0:
             self.mirando_derecha = dx > 0
@@ -107,6 +112,11 @@ class Robot:
         # En pantalla el eje Y crece hacia abajo; con -dy el ángulo positivo es hacia arriba.
         # Con abs(dx) se mide desde la horizontal del lado al que se apunta (rango reflejado).
         angulo = math.degrees(math.atan2(-dy, abs(dx)))
+        if not self.en_suelo:
+            # En el aire: dirección libre, normalizada (largo 1)
+            self.angulo = angulo
+            self.direccion_disparo = (dx / distancia, dy / distancia)
+            return
         self.angulo = max(-c.ANGULO_MAXIMO, min(c.ANGULO_MAXIMO, angulo))
         radianes = math.radians(self.angulo)
         # cos y sin dan un vector de largo 1: la velocidad no depende de la distancia al cursor
@@ -153,7 +163,8 @@ class Robot:
             self.rect.top = 0
             self.vel_y = max(self.vel_y, 0)
 
-        # 3) El propulsor se recarga solo estando apoyado
+        # 3) El propulsor se recarga solo estando apoyado (nunca en el aire):
+        #    de vacío a lleno en 1,5 s de contacto continuo
         if self.en_suelo:
             self.energia = min(c.ENERGIA_MAXIMA, self.energia + c.RECARGA_PROPULSOR)
 
