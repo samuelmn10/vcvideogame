@@ -2,7 +2,7 @@
 
 Mini-juego de plataformas 2D hecho en Python con Pygame. Es una actividad de **vibecoding**: el juego se desarrolló con IA como copiloto, a partir de prompts progresivos.
 
-Un robot debe recoger baterías, esquivar a un enemigo y no caer en los huecos para llegar al portal de salida.
+Un robot debe recoger baterías, esquivar o eliminar a tres enemigos con un pulso de energía y no caer en los huecos para llegar al portal de salida.
 
 ## Cómo ejecutarlo
 
@@ -16,12 +16,19 @@ pip install -r requirements.txt
 python main.py
 ```
 
+> **Si la instalación falla con Python 3.14** (error `'SDL.h' file not found`): pygame 2.6.1 todavía no tiene versión lista para Python 3.14. Instala `pygame-ce`, que se usa igual con `import pygame`:
+>
+> ```bash
+> pip install pygame-ce
+> ```
+
 ## Controles
 
 | Tecla | Acción |
 |---|---|
 | A / D o flechas ← → | Moverse |
 | Espacio | Saltar |
+| J | Lanzar un pulso de energía |
 | R | Reiniciar (después de ganar o perder) |
 | Escape | Salir |
 
@@ -95,7 +102,86 @@ Genera únicamente esta primera versión funcional. Espera un nuevo prompt antes
 
 </details>
 
-### Prompt 2: _pendiente_
+### Prompt 2: más dificultad y un ataque
+
+**Qué se pidió a la IA:** que mejorara el nivel existente, sin rehacerlo. Pasar de uno a tres enemigos, repartidos y algo más rápidos; mover plataformas y baterías para exigir más precisión; y agregar un pulso de energía con la tecla J, con reglas exactas (espera de 0,6 s, máximo 2 pulsos activos, alcance de 350 px, desaparece al chocar).
+
+**Por qué se refinó el prompt así:**
+- Se pidió **revisar el código actual y conservar lo que ya funciona**, para que la IA no reescribiera todo y se pudiera ver qué cambió.
+- Los números concretos del ataque (espera, cantidad y alcance) evitan que el ataque haga el juego demasiado fácil.
+- Las reglas de equilibrio (sin invulnerabilidad, nada de saltos imposibles, ningún enemigo en la aparición, el portal sigue siendo la victoria) evitan que "más difícil" se convierta en "injusto".
+- Se repitieron los límites de alcance (sin jefes, armas extra, menús ni sonidos) para mantener el proyecto pequeño.
+
+<details>
+<summary>Texto completo del prompt 2</summary>
+
+```
+ROL
+Continúa como desarrollador de videojuegos en Python y tutor del proyecto RoboAventura.
+CONTEXTO
+Ya tengo una primera versión del juego. Ahora quiero aumentar su dificultad e incorporar una habilidad de ataque. Revisa el código actual antes de modificarlo y conserva las funciones que ya funcionan.
+OBJETIVO
+Mejora el nivel existente agregando más enemigos y un pulso de energía que permita al robot defenderse.
+REQUISITOS DE DIFICULTAD
+* Mantén un único nivel y las dimensiones actuales.
+* Aumenta de uno a tres enemigos y distribúyelos a lo largo del recorrido.
+* Haz que patrullen sin caer de las plataformas ni salir de su zona.
+* Aumenta moderadamente la velocidad de los enemigos respecto a la versión anterior.
+* Ajusta la ubicación de algunas plataformas y baterías para exigir mayor precisión, manteniendo todos los saltos alcanzables.
+* Evita colocar enemigos o peligros sobre el punto de aparición del jugador.
+HABILIDAD DE ATAQUE
+* Permite lanzar un pulso de energía con J.
+* El pulso debe viajar horizontalmente hacia el lado que el personaje esté mirando.
+* Cada pulso elimina a un solo enemigo al impactarlo y desaparece.
+* Establece un tiempo de espera de 0,6 segundos entre ataques.
+* Permite un máximo de dos pulsos activos simultáneamente.
+* Limita su alcance a 350 píxeles desde el punto de lanzamiento.
+* Elimina el pulso al alcanzar su distancia máxima, golpear una plataforma sólida o salir del escenario.
+* Representa el ataque mediante figuras y colores dibujados con Pygame.
+REGLAS Y EQUILIBRIO
+* Mantén la derrota inmediata al tocar un enemigo o caer en un hueco.
+* El ataque no debe otorgar invulnerabilidad.
+* Permite atacar tanto desde el suelo como durante un salto.
+* Llegar al portal sigue siendo la condición de victoria; eliminar a todos los enemigos es opcional.
+* Muestra en pantalla el control de ataque y una indicación sencilla de cuándo está disponible.
+* Después de ganar o perder, bloquea los ataques.
+* Al reiniciar, restaura los tres enemigos y elimina todos los pulsos y tiempos de espera de la partida anterior.
+LÍMITES
+* No agregues niveles, jefes, armas adicionales, mejoras de armas, inventario, doble salto ni multijugador.
+* No incorpores todavía menús nuevos, pausa, sonidos ni recursos externos.
+* Mantén Python, Pygame y los archivos existentes.
+* Evita reorganizar todo el proyecto o añadir complejidad innecesaria.
+* Si encuentras un error previo que impida implementar esta mejora, explica la corrección necesaria.
+* No aumentes la dificultad mediante saltos imposibles o situaciones inevitables de derrota.
+FORMATO DE RESPUESTA
+1. Resume los cambios respecto a la primera versión.
+2. Entrega los archivos modificados completos.
+3. Explica cómo funcionan la dirección del ataque, el tiempo de espera, el alcance y las colisiones de los pulsos.
+4. Proporciona pruebas manuales para comprobar:
+   * Ataques hacia ambos lados y durante el salto.
+   * Tiempo de espera y máximo de pulsos activos.
+   * Impactos contra enemigos y plataformas.
+   * Eliminación de pulsos al alcanzar su límite.
+   * Reinicio completo después de ganar o perder.
+   * Posibilidad de completar el nivel.
+5. Distingue las pruebas ejecutadas de las pendientes y señala las limitaciones conocidas.
+Realiza únicamente esta segunda iteración y espera nuevas instrucciones antes de añadir otras funciones.
+```
+
+</details>
+
+**Cambios respecto a la versión 1:**
+
+| Elemento | Versión 1 | Versión 2 |
+|---|---|---|
+| Enemigos | 1, en el suelo (1300–1650) | 3: suelo del tramo 1 (430–690), encima de la plataforma 5 (1380–1620) y suelo del tramo 3 (2050–2500) |
+| Velocidad de los enemigos | 2 px/cuadro | 3 px/cuadro |
+| Plataforma 2 | (520, 360), 120 de ancho | (520, 340), 110 de ancho |
+| Plataforma 4 | (1150, 350), 140 de ancho | (1110, 330), 110 de ancho |
+| Plataforma 5 | (1400, 430), 160 de ancho | (1380, 430), 240 de ancho, con enemigo encima |
+| Plataforma 7 | (2200, 350), 140 de ancho | (2160, 330), 110 de ancho |
+| Baterías | fáciles de alcanzar | una exige saltar encima de la plataforma 2, otra está junto a un enemigo y dos están sobre los huecos |
+| Ataque | — | pulso con J: espera de 0,6 s, máximo 2 activos, alcance de 350 px |
 
 ### Prompt 3: _pendiente_
 
@@ -107,12 +193,37 @@ Genera únicamente esta primera versión funcional. Espera un nuevo prompt antes
 - **Gravedad:** la velocidad vertical aumenta 1 px por cuadro, hasta un máximo de 15. Saltar la pone en −17, así que el robot sube unos 136 px y luego cae.
 - **Colisiones:** primero se mueve en X y se corrige si choca con un sólido; después se mueve en Y. Si choca cayendo, aterriza (`en_suelo = True`). Si choca subiendo, se golpea la cabeza. Solo se puede saltar con `en_suelo = True`.
 - **Cámara:** `camara_x` intenta centrar al robot, pero se limita entre 0 y 1920 (2880 − 960). Todo se dibuja restando `camara_x` a su posición.
+- **Enemigos:** cada uno recibe `(límite_izq, límite_der, y_de_la_superficie)`. Avanza 3 px por cuadro y, al tocar un límite, se acomoda en el borde y da la vuelta. El de la plataforma 5 tiene como límites los bordes de la plataforma, así que no puede caerse.
+- **Dirección del pulso:** al presionar J, el pulso toma `mirando_derecha` del robot (1 = derecha, −1 = izquierda). Nace pegado al frente del robot, a la altura de su centro, y avanza 8 px por cuadro en esa dirección. Funciona igual en el suelo y en el aire.
+- **Tiempo de espera:** al lanzar, `espera_pulso` vale 36 cuadros (0,6 s × 60 FPS) y baja 1 por cuadro. Solo se puede atacar si la espera está en 0, hay menos de 2 pulsos activos y la partida sigue en curso.
+- **Alcance:** cada pulso suma en `recorrido` lo que avanza. El último paso se recorta para no pasar de 350 px, y al llegar ahí se elimina.
+- **Colisiones del pulso:** cada cuadro se revisa si toca a un enemigo; si toca a uno, se eliminan ese enemigo y el pulso (`break`, así que solo uno). Si no, se elimina cuando llega a su alcance, choca con un sólido (`collidelist`) o sale del escenario.
 
 ## Validación
 
 ### Pruebas realizadas por la IA (automáticas, sin ventana)
 
-Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego. Resultado: **14 de 14 correctas**.
+Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa el estado del juego.
+
+**Versión 2: 33 de 33 correctas**, con pygame 2.6.1 y con pygame-ce 2.5.8. Además de repetir las pruebas de la versión 1:
+
+| Regla | Resultado |
+|---|---|
+| Hay 3 enemigos y su velocidad subió de 2 a 3 | ✅ |
+| Ninguno sale de su zona ni de su superficie en 5000 cuadros (el de la plataforma no se cae) | ✅ |
+| Ningún enemigo está a menos de 300 px de la aparición; quedarse quieto 2 s no hace perder | ✅ |
+| Pulso hacia la derecha, hacia la izquierda y durante un salto | ✅ |
+| Espera: no se lanza otro pulso durante 35 cuadros y sí a los 36 (0,6 s) | ✅ |
+| Nunca hay más de 2 pulsos activos (600 cuadros presionando J) | ✅ |
+| El pulso avanza 350 px y desaparece | ✅ |
+| El pulso desaparece al chocar con una plataforma y al salir del escenario | ✅ |
+| Un pulso elimina a un solo enemigo aunque haya dos juntos | ✅ |
+| Después de ganar o de perder no se puede atacar | ✅ |
+| R restaura los 3 enemigos y borra pulsos y espera (tras perder y tras ganar) | ✅ |
+| Las 11 superficies y las 6 baterías siguen siendo alcanzables | ✅ |
+| Un jugador automático que camina, dispara y salta los huecos gana la partida | ✅ |
+
+**Versión 1: 14 de 14 correctas.**
 
 | Regla | Resultado |
 |---|---|
@@ -129,7 +240,14 @@ Se ejecutó un script con Pygame en modo sin pantalla que simula teclas y revisa
 | Las 11 superficies (3 tramos de suelo + 8 plataformas) son alcanzables saltando | ✅ |
 | Las 6 baterías se pueden recoger | ✅ |
 
-También se generaron capturas de pantalla para revisar el dibujo del robot, el enemigo, las baterías, el portal y el mensaje de victoria.
+También se generaron capturas de pantalla para revisar el dibujo del robot, los enemigos, las baterías, el pulso, el indicador de ataque, el portal y los mensajes de victoria y derrota.
+
+### Errores encontrados y ajustes
+
+1. **Instalación en macOS con Python 3.14:** `pip install -r requirements.txt` falló con `'SDL.h' file not found`, porque pygame 2.6.1 no tiene versión para Python 3.14 e intentó compilarse. **Ajuste:** se instaló `pygame-ce`, que es compatible y no requiere cambiar el código. Se agregó la nota en "Cómo ejecutarlo".
+2. **El pulso pasaba 2 px de su alcance:** avanzaba de 8 en 8 y 350 no es múltiplo de 8, así que llegaba a 352 px. Lo detectó una prueba automática. **Ajuste:** el último paso se recorta a lo que falta.
+3. **La regla de "máximo 2 pulsos" no tenía efecto:** con velocidad 10, el pulso desaparecía en 35 cuadros, antes de que terminara la espera de 36. **Ajuste:** se bajó la velocidad a 8 (el pulso dura unos 44 cuadros).
+4. **El indicador decía "listo" después de perder,** aunque el ataque estaba bloqueado. Se vio en una captura. **Ajuste:** `puede_atacar()` también revisa que la partida siga en curso.
 
 ### Pruebas manuales (para hacer al jugar)
 
@@ -143,12 +261,29 @@ También se generaron capturas de pantalla para revisar el dibujo del robot, el 
 8. Llegar al portal: aparece la victoria con la cantidad de baterías recogidas.
 9. Cerrar con Escape y con la X de la ventana.
 
+**Pulso de energía (versión 2):**
+
+10. Mirar a la derecha y presionar J; luego mirar a la izquierda y presionar J: el pulso sale hacia el lado correcto.
+11. Saltar y presionar J en el aire: el pulso sale a la altura del robot.
+12. Presionar J muy rápido: solo sale un pulso cada 0,6 s, el indicador pasa a gris ("recargando") y la barra se vuelve a llenar.
+13. Presionar J apenas termine la espera: puede haber 2 pulsos en pantalla, pero nunca 3.
+14. Disparar a un enemigo: desaparecen el enemigo y el pulso.
+15. Disparar contra el costado de una plataforma (por ejemplo, saltando junto a la plataforma 2): el pulso desaparece al chocar.
+16. Disparar al vacío: el pulso desaparece a unos 350 px (algo más de un tercio de la pantalla).
+17. Tocar a un enemigo justo después de disparar: igual se pierde (no hay invulnerabilidad).
+18. Perder o ganar y presionar J: no sale ningún pulso.
+19. Presionar R después de perder y después de ganar: vuelven los 3 enemigos, no queda ningún pulso y el indicador dice "listo".
+20. Completar el nivel dos veces: una eliminando a los enemigos y otra esquivándolos con saltos o pasando por las plataformas.
+
 ### Limitaciones conocidas
 
 - Las pruebas automáticas no reemplazan jugarlo: falta probarlo con ventana real y teclado.
-- Un recorrido directo al portal toma unos 10–20 segundos (2880 px a 5 px por cuadro). Recoger las 6 baterías y esquivar al enemigo toma más, pero puede quedar por debajo del minuto pedido.
-- La física avanza "por cuadro": si el equipo no alcanza 60 FPS, el juego se siente más lento.
-- Debajo de la plataforma 5 el robot no puede saltar por encima del enemigo, porque se golpea la cabeza. Hay que esquivarlo antes o subir a la plataforma.
+- El jugador automático ganó en unos 9 segundos yendo directo al portal. Recoger las 6 baterías lleva más tiempo, pero la partida puede seguir siendo más corta que el minuto pedido en el prompt 1.
+- La física y la espera del pulso se cuentan "por cuadro": si el equipo no alcanza 60 FPS, todo se siente más lento (incluida la espera de 0,6 s).
+- Desde el suelo no se puede dar al enemigo de la plataforma 5, porque el pulso pasa por debajo. Hay que subir a la plataforma. Es una decisión de diseño: ese enemigo y su batería son opcionales.
+- El enemigo de la plataforma 5 empieza en el borde izquierdo. Si el robot sube justo ahí al comenzar, puede chocar con él. Conviene mirar antes de subir.
+- `requirements.txt` sigue pidiendo `pygame`. En Python 3.14 hay que instalar `pygame-ce` a mano (ver nota en "Cómo ejecutarlo").
+- **Pendiente:** jugar la versión 2 con ventana y teclado real (pruebas manuales 10 a 20).
 
 ## Reflexión final
 

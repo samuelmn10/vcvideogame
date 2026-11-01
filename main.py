@@ -1,9 +1,10 @@
 """
-RoboAventura - Mini-juego de plataformas 2D (versión 1).
+RoboAventura - Mini-juego de plataformas 2D (versión 2).
 
 Controles:
     A / D o flechas izquierda / derecha -> moverse
     Espacio                             -> saltar
+    J                                   -> lanzar un pulso de energía
     R                                   -> reiniciar (después de ganar o perder)
     Escape                              -> salir
 """
@@ -25,7 +26,13 @@ GRAVEDAD = 1
 VELOCIDAD_SALTO = -17        # negativo = hacia arriba (el eje Y crece hacia abajo)
 VELOCIDAD_CAIDA_MAX = 15     # menor que el grosor de las plataformas para no atravesarlas
 VELOCIDAD_JUGADOR = 5
-VELOCIDAD_ENEMIGO = 2
+VELOCIDAD_ENEMIGO = 3        # en la versión 1 era 2
+
+# Pulso de energía
+VELOCIDAD_PULSO = 8          # con 8 px/cuadro dura ~44 cuadros, así caben 2 pulsos activos
+ALCANCE_PULSO = 350          # distancia máxima en píxeles desde el punto de lanzamiento
+ESPERA_PULSO = 36            # 0,6 segundos de espera entre ataques (0,6 × 60 cuadros)
+MAX_PULSOS = 2               # pulsos activos al mismo tiempo
 
 # Estados posibles de la partida
 JUGANDO = "jugando"
@@ -51,6 +58,10 @@ COLOR_ENEMIGO = (210, 60, 90)
 COLOR_PORTAL_EXTERIOR = (150, 80, 255)
 COLOR_PORTAL_INTERIOR = (90, 40, 200)
 COLOR_PORTAL_CENTRO = (220, 200, 255)
+COLOR_PULSO = (80, 230, 255)
+COLOR_PULSO_CENTRO = (235, 255, 255)
+COLOR_LISTO = (90, 220, 120)
+COLOR_RECARGANDO = (130, 130, 150)
 COLOR_TEXTO = (255, 255, 255)
 
 # ---------------------------------------------------------------------------
@@ -68,28 +79,36 @@ TRAMOS_SUELO = [
 
 # Plataformas flotantes como (x, y, ancho). Todas miden 20 px de alto.
 # Ninguna está a más de 110 px por encima de la anterior (el salto alcanza 136 px).
+# Versión 2: las plataformas 2, 4 y 7 son más altas y angostas, y la 5 es más ancha
+# para que un enemigo patrulle encima.
 PLATAFORMAS = [
     (300, 440, 140),
-    (520, 360, 120),
+    (520, 340, 110),
     (900, 430, 140),
-    (1150, 350, 140),
-    (1400, 430, 160),
+    (1110, 330, 110),
+    (1380, 430, 240),
     (1950, 430, 140),
-    (2200, 350, 140),
+    (2160, 330, 110),
     (2450, 430, 120),
 ]
 
 # Baterías como (x, y) de su esquina superior izquierda.
 BATERIAS = [
     (360, 400),   # sobre la plataforma 1
-    (570, 320),   # sobre la plataforma 2
-    (750, 460),   # encima del hueco 1 (se recoge al saltarlo)
-    (1210, 310),  # sobre la plataforma 4
-    (2010, 390),  # sobre la plataforma 6
-    (2260, 310),  # sobre la plataforma 7
+    (565, 250),   # sobre la plataforma 2 (hay que saltar estando encima)
+    (750, 420),   # encima del hueco 1 (se recoge al saltarlo)
+    (1155, 290),  # sobre la plataforma 4
+    (1490, 390),  # sobre la plataforma 5, donde patrulla un enemigo
+    (1755, 440),  # encima del hueco 2 (se recoge al saltarlo)
 ]
 
-ZONA_ENEMIGO = (1300, 1650)              # límites izquierdo y derecho de la patrulla
+# Zonas de patrulla de los enemigos como (límite_izq, límite_der, y_de_la_superficie).
+# El primero empieza a más de 300 px del punto de aparición del jugador.
+ZONAS_ENEMIGOS = [
+    (430, 690, ALTURA_SUELO),    # suelo del primer tramo, antes del hueco 1
+    (1380, 1620, 430),           # encima de la plataforma 5 (sus mismos bordes)
+    (2050, 2500, ALTURA_SUELO),  # suelo del último tramo, antes del portal
+]
 POSICION_INICIAL = (80, ALTURA_SUELO - 48)
 PORTAL = (2740, ALTURA_SUELO - 110, 70, 110)  # (x, y, ancho, alto)
 
@@ -191,10 +210,11 @@ class Enemigo:
     ANCHO = 44
     ALTO = 32
 
-    def __init__(self, limite_izq, limite_der):
+    def __init__(self, limite_izq, limite_der, superficie_y):
         self.limite_izq = limite_izq
         self.limite_der = limite_der
-        self.rect = pygame.Rect(limite_izq, ALTURA_SUELO - self.ALTO, self.ANCHO, self.ALTO)
+        # Se apoya sobre la superficie indicada (suelo o plataforma)
+        self.rect = pygame.Rect(limite_izq, superficie_y - self.ALTO, self.ANCHO, self.ALTO)
         self.direccion = 1  # 1 = derecha, -1 = izquierda
 
     def actualizar(self):
@@ -220,6 +240,39 @@ class Enemigo:
         for ojo_x in (x + 14, x + 30):
             pygame.draw.circle(pantalla, COLOR_TEXTO, (ojo_x, y + 17), 5)
             pygame.draw.circle(pantalla, (0, 0, 0), (ojo_x + 2 * self.direccion, y + 17), 2)
+
+
+class Pulso:
+    """Pulso de energía que viaja en línea recta hacia donde mira el robot."""
+
+    ANCHO = 18
+    ALTO = 10
+
+    def __init__(self, jugador):
+        self.direccion = 1 if jugador.mirando_derecha else -1
+        self.rect = pygame.Rect(0, 0, self.ANCHO, self.ALTO)
+        # Nace pegado al frente del robot, a la altura de su centro
+        if self.direccion == 1:
+            self.rect.midleft = jugador.rect.midright
+        else:
+            self.rect.midright = jugador.rect.midleft
+        self.recorrido = 0  # píxeles avanzados desde el lanzamiento
+
+    def actualizar(self):
+        # El último paso se recorta para no pasar de ALCANCE_PULSO
+        paso = min(VELOCIDAD_PULSO, ALCANCE_PULSO - self.recorrido)
+        self.rect.x += paso * self.direccion
+        self.recorrido += paso
+
+    def termino_alcance(self):
+        """True si ya recorrió su distancia máxima o salió del escenario."""
+        return (self.recorrido >= ALCANCE_PULSO
+                or self.rect.right < 0 or self.rect.left > ANCHO_NIVEL)
+
+    def dibujar(self, pantalla, camara_x):
+        rect = self.rect.move(-camara_x, 0)
+        pygame.draw.ellipse(pantalla, COLOR_PULSO, rect)
+        pygame.draw.ellipse(pantalla, COLOR_PULSO_CENTRO, rect.inflate(-8, -4))
 
 
 class Bateria:
@@ -252,10 +305,12 @@ class Juego:
         self.reiniciar()
 
     def reiniciar(self):
-        """Restaura jugador, enemigo, baterías, contador y cámara."""
+        """Restaura jugador, enemigos, baterías, contador, pulsos, espera y cámara."""
         self.jugador = Jugador(*POSICION_INICIAL)
-        self.enemigo = Enemigo(*ZONA_ENEMIGO)
+        self.enemigos = [Enemigo(*zona) for zona in ZONAS_ENEMIGOS]
         self.baterias = [Bateria(x, y) for x, y in BATERIAS]
+        self.pulsos = []
+        self.espera_pulso = 0  # cuadros que faltan para poder atacar de nuevo
         self.contador = 0
         self.estado = JUGANDO
         self.motivo_derrota = ""
@@ -265,26 +320,60 @@ class Juego:
         if self.estado == JUGANDO:
             if tecla == pygame.K_SPACE:
                 self.jugador.saltar()
+            elif tecla == pygame.K_j:
+                self.lanzar_pulso()
         elif tecla == pygame.K_r:
             # Reiniciar solo está disponible después de ganar o perder
             self.reiniciar()
+
+    def puede_atacar(self):
+        # Al ganar o perder los ataques quedan bloqueados
+        return (self.estado == JUGANDO and self.espera_pulso == 0
+                and len(self.pulsos) < MAX_PULSOS)
+
+    def lanzar_pulso(self):
+        # Funciona igual en el suelo o en el aire
+        if self.puede_atacar():
+            self.pulsos.append(Pulso(self.jugador))
+            self.espera_pulso = ESPERA_PULSO
+
+    def actualizar_pulsos(self):
+        """Mueve los pulsos y elimina los que chocan o llegan a su límite."""
+        for pulso in self.pulsos[:]:  # se recorre una copia porque se borran elementos
+            pulso.actualizar()
+            enemigo_golpeado = None
+            for enemigo in self.enemigos:
+                if pulso.rect.colliderect(enemigo.rect):
+                    enemigo_golpeado = enemigo
+                    break  # cada pulso elimina a un solo enemigo
+            if enemigo_golpeado:
+                self.enemigos.remove(enemigo_golpeado)
+                self.pulsos.remove(pulso)
+            elif pulso.termino_alcance() or pulso.rect.collidelist(self.solidos) != -1:
+                self.pulsos.remove(pulso)
 
     def actualizar(self, teclas):
         # Si la partida terminó, no se mueve nada hasta reiniciar o salir
         if self.estado != JUGANDO:
             return
 
+        if self.espera_pulso > 0:
+            self.espera_pulso -= 1
+
         self.jugador.actualizar(teclas, self.solidos)
-        self.enemigo.actualizar()
+        for enemigo in self.enemigos:
+            enemigo.actualizar()
+        self.actualizar_pulsos()
 
         for bateria in self.baterias:
             if not bateria.recogida and self.jugador.rect.colliderect(bateria.rect):
                 bateria.recogida = True
                 self.contador += 1
 
-        if self.jugador.rect.colliderect(self.enemigo.rect):
+        # El ataque no da invulnerabilidad: tocar a cualquier enemigo es derrota
+        if self.jugador.rect.collidelist([e.rect for e in self.enemigos]) != -1:
             self.estado = DERROTA
-            self.motivo_derrota = "Te atrapó el enemigo"
+            self.motivo_derrota = "Te atrapó un enemigo"
         elif self.jugador.rect.top > ALTO_VENTANA:
             self.estado = DERROTA
             self.motivo_derrota = "Caíste al vacío"
@@ -305,8 +394,11 @@ class Juego:
         self.dibujar_portal(pantalla)
         for bateria in self.baterias:
             bateria.dibujar(pantalla, self.camara_x)
-        self.enemigo.dibujar(pantalla, self.camara_x)
+        for enemigo in self.enemigos:
+            enemigo.dibujar(pantalla, self.camara_x)
         self.jugador.dibujar(pantalla, self.camara_x)
+        for pulso in self.pulsos:
+            pulso.dibujar(pantalla, self.camara_x)
         self.dibujar_hud(pantalla)
 
         if self.estado == VICTORIA:
@@ -345,6 +437,20 @@ class Juego:
     def dibujar_hud(self, pantalla):
         texto = self.fuente.render(f"Baterías: {self.contador} / {len(self.baterias)}", True, COLOR_TEXTO)
         pantalla.blit(texto, (20, 20))
+
+        # Indicador del ataque: verde si está listo, gris mientras recarga
+        if self.puede_atacar():
+            color, estado = COLOR_LISTO, "listo"
+        else:
+            color, estado = COLOR_RECARGANDO, "recargando"
+        texto = self.fuente.render(f"J: pulso ({estado})", True, color)
+        pantalla.blit(texto, texto.get_rect(topright=(ANCHO_VENTANA - 20, 20)))
+        # Barra que se llena a medida que termina la espera
+        progreso = 1 - self.espera_pulso / ESPERA_PULSO
+        barra = pygame.Rect(0, 0, 160, 8)
+        barra.topright = (ANCHO_VENTANA - 20, 50)
+        pygame.draw.rect(pantalla, COLOR_RECARGANDO, barra, 1)
+        pygame.draw.rect(pantalla, color, (barra.x, barra.y, int(barra.width * progreso), barra.height))
 
     def dibujar_mensaje(self, pantalla, titulo, detalle):
         # Capa semitransparente sobre el juego
